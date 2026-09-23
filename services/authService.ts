@@ -93,23 +93,32 @@ export const authService = {
     await supabase.auth.signOut();
   },
 
-  /** Re-hydrate the current session on app start (used in app/_layout.tsx). */
+  /**
+   * Re-hydrate the current session on app start.
+   * Uses `auth.getUser()` — not `getSession()` — so the returned access token
+   * has been validated against Supabase (and refreshed if expired) before it is
+   * used for any subsequent request. This avoids 401s from a stale stored token.
+   */
   async getCurrentUser(): Promise<User | null> {
-    const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session?.user) return null;
-    return toUser(data.session.user);
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      console.warn('[auth] getCurrentUser: no valid session.', error?.message ?? 'no user');
+      return null;
+    }
+    return toUser(data.user);
   },
 
   /** Delete user account and all associated data. */
   async deleteAccount(): Promise<{ ok: boolean; error?: string }> {
     try {
-      // Get current user
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !sessionData?.session?.user?.id) {
+      // Get current user (validates the token too).
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        console.error('[deleteAccount] no active session:', userError?.message ?? 'no user');
         return { ok: false, error: 'No active session.' };
       }
 
-      const userId = sessionData.session.user.id;
+      const userId = userData.user.id;
 
       // Delete all user transactions
       const { error: txError } = await supabase

@@ -8,7 +8,7 @@ import { Text, View } from 'react-native';
  */
 export function ScreenHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <View className="flex-row items-center justify-between mb-6">
+    <View className="flex-row items-center justify-between mb-6" style={{ paddingRight: action ? 58 : 0 }}>
       <View className="flex-1 pr-3">
         <Text className="text-3xl font-bold text-gray-900 dark:text-gray-100">{title}</Text>
         {subtitle ? (

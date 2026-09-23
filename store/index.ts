@@ -5,7 +5,13 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { authService } from '../services/authService';
 import { supabase } from '../services/supabase';
 import { Goal, NotificationPrefs, ThemeMode, Transaction, User } from '../types';
-import { isoToday, uid } from '../utils';
+import { isoToday, toNumber, uid } from '../utils';
+
+// Tracks in-flight / most-recent Supabase hydration so repeated triggers
+// (React StrictMode double-effects, onAuthStateChange + explicit boot checks)
+// don't fire duplicate transaction/goal requests.
+let activeHydrationUserId: string | null = null;
+let lastHydratedUserId: string | null = null;
 
 /**
  * Global app state via Zustand.
@@ -56,7 +62,7 @@ interface AppState {
 
   // Supabase sync
   /** Fetches this user's real transactions/goals from Supabase and replaces local state. */
-  hydrateFromSupabase: (userId: string) => Promise<void>;
+  hydrateFromSupabase: (userId?: string) => Promise<void>;
 }
 
 const seededTransactions: Transaction[] = [
@@ -80,8 +86,8 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       user: null,
       hasOnboarded: false,
-      transactions: seededTransactions,
-      goals: seededGoals,
+      transactions: [],
+      goals: [],
 
       theme: 'light',
       currency: 'USD',
@@ -98,6 +104,9 @@ export const useAppStore = create<AppState>()(
       updateUser: (patch) => set((s) => ({ user: s.user ? { ...s.user, ...patch } : s.user })),
       signOut: async () => {
         await authService.signOut();
+        console.log('[auth] Signed out — clearing transactions and goals.');
+        lastHydratedUserId = null;
+        activeHydrationUserId = null;
         set({ user: null, transactions: [], goals: [] });
       },
       deleteAccount: async () => {
@@ -106,6 +115,8 @@ export const useAppStore = create<AppState>()(
           return result;
         }
         await authService.signOut();
+        lastHydratedUserId = null;
+        activeHydrationUserId = null;
         set({ user: null, transactions: [], goals: [] });
         return { ok: true };
       },
@@ -247,40 +258,56 @@ export const useAppStore = create<AppState>()(
       resetDemoData: () => set({ transactions: seededTransactions, goals: seededGoals }),
       clearAllData: () => set({ transactions: [], goals: [] }),
 
-      hydrateFromSupabase: async (userId) => {
-        try {
-          const loadData = () =>
-            Promise.all([
-              supabase
-                .from('transactions')
-                .select('*')
-                .eq('user_id', userId)
-                .order('date', { ascending: false }),
-              supabase.from('goals').select('*').eq('user_id', userId),
-            ]);
-
-          let [txResult, goalResult] = await loadData();
-          const hasFutureJwtError = [txResult.error, goalResult.error].some((error: any) =>
-            error?.message?.toLowerCase().includes('jwt issued at future'),
+      hydrateFromSupabase: async (userId?: string) => {
+        // 1. Validate the session. `auth.getUser()` checks the access token and
+        //    refreshes it if expired, so the very first request carries a valid
+        //    JWT (fixes the 401 from a stale/persisted token). Never trust the
+        //    passed-in userId blindly — always use the authenticated user.
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) {
+          console.error(
+            '[auth] Hydration skipped — no authenticated user.',
+            error?.message ?? 'no session',
           );
+          return;
+        }
 
-          if (hasFutureJwtError) {
-            const { error: refreshError } = await supabase.auth.refreshSession();
-            if (!refreshError) [txResult, goalResult] = await loadData();
-          }
+        const authedUserId = data.user.id;
+        console.log('[auth] Current authenticated user id:', authedUserId);
+
+        // 2. Skip if this user's data is already loaded or being loaded.
+        //    Prevents duplicate requests from onAuthStateChange + boot checks.
+        if (lastHydratedUserId === authedUserId || activeHydrationUserId === authedUserId) {
+          return;
+        }
+
+        activeHydrationUserId = authedUserId;
+        try {
+          const [txResult, goalResult] = await Promise.all([
+            supabase
+              .from('transactions')
+              .select('*')
+              .eq('user_id', authedUserId)
+              .order('date', { ascending: false }),
+            supabase.from('goals').select('*').eq('user_id', authedUserId),
+          ]);
 
           if (txResult.error) {
-            console.error('[hydrateFromSupabase] transactions error:', txResult.error.message);
+            console.error('[transactions] fetch error:', txResult.error.message);
+          } else {
+            console.log(
+              `[transactions] Fetched ${txResult.data?.length ?? 0} transactions for user ${authedUserId}`,
+            );
           }
           if (goalResult.error) {
-            console.error('[hydrateFromSupabase] goals error:', goalResult.error.message);
+            console.error('[goals] fetch error:', goalResult.error.message);
           }
 
           set({
             transactions: (txResult.data ?? []).map((t: any) => ({
               id: t.id,
               title: t.title,
-              amount: Number(t.amount),
+              amount: toNumber(t.amount),
               type: t.type,
               category: t.category,
               date: t.date,
@@ -288,13 +315,18 @@ export const useAppStore = create<AppState>()(
             goals: (goalResult.data ?? []).map((g: any) => ({
               id: g.id,
               title: g.title,
-              target: Number(g.target),
-              saved: Number(g.saved),
+              target: toNumber(g.target),
+              saved: toNumber(g.saved),
               deadline: g.deadline ?? undefined,
             })),
           });
+
+          // Mark as hydrated only after a successful load.
+          lastHydratedUserId = authedUserId;
         } catch (e) {
           console.error('[hydrateFromSupabase] failed:', e);
+        } finally {
+          activeHydrationUserId = null;
         }
       },
     }),

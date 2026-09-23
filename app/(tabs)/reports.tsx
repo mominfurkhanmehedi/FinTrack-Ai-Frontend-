@@ -54,15 +54,19 @@ export default function Reports() {
         </Card>
 
         <Card title="Cash flow">
-          <Chart
-            kind="bar"
-            title="Last 7 days"
-            labels={chartData.labels}
-            datasets={[
-              { data: chartData.income, color: '#22c55e', name: 'Income' },
-              { data: chartData.expenses, color: '#ef4444', name: 'Expenses' },
-            ]}
-          />
+          {transactions.length > 0 ? (
+            <Chart
+              kind="bar"
+              title="Last 7 days"
+              labels={chartData.labels}
+              datasets={[
+                { data: chartData.income, color: '#22c55e', name: 'Income' },
+                { data: chartData.expenses, color: '#ef4444', name: 'Expenses' },
+              ]}
+            />
+          ) : (
+            <Text className="text-sm text-gray-500">No transactions to chart yet.</Text>
+          )}
         </Card>
 
         <Card title="Spending by category">

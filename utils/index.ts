@@ -1,5 +1,15 @@
 import { Transaction, TransactionType } from '../types';
 
+/**
+ * Safely coerce a value to a finite number, falling back to 0.
+ * Prevents NaN/Infinity from leaking into amounts, chart math, and SVG
+ * coordinates when a row is null, missing, or otherwise non-numeric.
+ */
+export function toNumber(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** Format a number as a currency string (defaults to USD). */
 export function formatCurrency(amount: number, currency = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
@@ -41,7 +51,7 @@ export function isoToday(offsetDays = 0): string {
 export function sumByType(txs: Transaction[], type: TransactionType): number {
   return txs
     .filter((t) => t.type === type)
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + toNumber(t.amount), 0);
 }
 
 /** Income minus expenses. */

@@ -42,8 +42,18 @@ export interface ChartProps {
 const BRAND = COLORS.brand;
 const gray = (opacity = 1) => `rgba(107, 114, 128, ${opacity})`;
 
-// Helper to convert numbers to strings for SVG props on web
-const str = (n: number | string): string => String(n);
+// Helper to convert numbers to strings for SVG props on web. Never emit NaN /
+// Infinity / undefined — those crash SVG attribute parsing and log browser
+// "Expected length, NaN" errors. Non-finite values map to "0".
+const str = (n: number | string): string => {
+  const num = typeof n === 'number' ? n : Number(n);
+  return Number.isFinite(num) ? String(num) : '0';
+};
+
+// Sanitize a data series: replace any non-finite value with 0 so chart math
+// and SVG coordinates can never receive NaN/Infinity.
+const sanitizeSeries = (data: number[]): number[] =>
+  data.map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0));
 
 function useChartWidth(): [number, (e: LayoutChangeEvent) => void] {
   const [width, setWidth] = useState(0);
@@ -62,6 +72,12 @@ export function Chart({
   const [width, onLayout] = useChartWidth();
   const chartWidth = Math.max(width - 16, 200);
 
+  // De-fang the data before it reaches any chart so amounts that are null,
+  // NaN, or otherwise non-numeric never leak into SVG dimensions.
+  const safeDatasets = datasets.map((d) => ({ ...d, data: sanitizeSeries(d.data) }));
+  const safeLabels = labels.map((l) => String(l ?? ''));
+  const safePieData = pieData.map((d) => ({ ...d, value: Number.isFinite(d.value) ? d.value : 0 }));
+
   const config = {
     backgroundGradientFrom: '#ffffff',
     backgroundGradientTo: '#ffffff',
@@ -78,14 +94,14 @@ export function Chart({
     <View onLayout={onLayout} className="w-full">
       {title ? <Text className="text-base font-semibold text-gray-900 mb-3">{title}</Text> : null}
 
-      {width > 0 && kind === 'line' && datasets.length > 0 && labels.length > 0 && (
+      {width > 0 && kind === 'line' && safeDatasets.length > 0 && safeLabels.length > 0 && (
         IS_WEB ? (
-          <WebLineChart width={chartWidth} height={height} labels={labels} datasets={datasets} />
+          <WebLineChart width={chartWidth} height={height} labels={safeLabels} datasets={safeDatasets} />
         ) : (
           <LineChart
             data={{
-              labels,
-              datasets: datasets.map((d) => ({
+              labels: safeLabels,
+              datasets: safeDatasets.map((d) => ({
                 data: d.data,
                 color: (o = 1) => `${d.color}${Math.round(o * 255).toString(16).padStart(2, '0')}`,
               })),
@@ -101,12 +117,12 @@ export function Chart({
 
       {width > 0 && kind === 'bar' && (
         IS_WEB ? (
-          <WebBarChart width={chartWidth} height={height} labels={labels} datasets={datasets} />
+          <WebBarChart width={chartWidth} height={height} labels={safeLabels} datasets={safeDatasets} />
         ) : (
           <BarChart
             data={{
-              labels,
-              datasets: datasets.map((d) => ({
+              labels: safeLabels,
+              datasets: safeDatasets.map((d) => ({
                 data: d.data,
                 color: (o = 1) => `${d.color}${Math.round(o * 255).toString(16).padStart(2, '0')}`,
               })),
@@ -125,11 +141,11 @@ export function Chart({
 
       {width > 0 && kind === 'pie' && pieData.length > 0 && (
         IS_WEB ? (
-          <WebPieChart width={chartWidth} height={height} data={pieData} />
+          <WebPieChart width={chartWidth} height={height} data={safePieData} />
         ) : (
           <View className="items-center">
             <PieChart
-              data={pieData}
+              data={safePieData}
               width={chartWidth}
               height={height}
               chartConfig={config}
@@ -174,7 +190,7 @@ function WebLineChart({
 }) {
   const plotW = width - PAD_LEFT - PAD_RIGHT;
   const plotH = height - PAD_TOP - PAD_BOTTOM;
-  const values = datasets.flatMap((d) => d.data).filter((v) => typeof v === 'number' && isFinite(v));
+  const values = datasets.flatMap((d) => sanitizeSeries(d.data)).filter((v) => typeof v === 'number' && isFinite(v));
   const min = values.length ? Math.min(0, ...values) : 0;
   const max = values.length ? Math.max(...values) : 1;
   const range = max - min || 1;
@@ -199,7 +215,7 @@ function WebLineChart({
 
   const lines = datasets.map((d, di) => {
     const color = d.color || BRAND;
-    const points = d.data
+    const points = sanitizeSeries(d.data)
       .map((v, i) => `${x(i)},${y(v)}`)
       .join(' ');
     return (
@@ -210,7 +226,7 @@ function WebLineChart({
   });
 
   const dots = datasets.map((d, di) =>
-    d.data.map((v, i) => (
+    sanitizeSeries(d.data).map((v, i) => (
       <Circle key={`dot-${di}-${i}`} cx={str(x(i))} cy={str(y(v))} r={str(3)} fill={d.color || BRAND} />
     ))
   );
@@ -244,15 +260,18 @@ function WebBarChart({
 }) {
   const plotW = width - PAD_LEFT - PAD_RIGHT;
   const plotH = height - PAD_TOP - PAD_BOTTOM;
-  const values = datasets.flatMap((d) => d.data).filter((v) => typeof v === 'number' && isFinite(v));
-  const max = values.length ? Math.max(0, ...values) : 1;
+  const values = datasets.flatMap((d) => sanitizeSeries(d.data)).filter((v) => typeof v === 'number' && isFinite(v));
+  const maxVal = values.length ? Math.max(0, ...values) : 0;
+  // Guard against a zero total (e.g. an empty transaction list): scale against 1
+  // instead of dividing by 0, which would push impossible NaN values into SVG.
+  const scaleMax = maxVal > 0 ? maxVal : 1;
   const n = Math.max(labels.length, ...datasets.map((d) => d.data.length), 1);
 
-  const y = (v: number) => PAD_TOP + plotH - (v / max) * plotH;
+  const y = (v: number) => PAD_TOP + plotH - (v / scaleMax) * plotH;
 
   const grid = [];
   for (let t = 0; t <= Y_TICKS; t++) {
-    const v = (max * t) / Y_TICKS;
+    const v = (scaleMax * t) / Y_TICKS;
     const yy = y(v);
     grid.push(
       <G key={`grid-${t}`}>
@@ -270,7 +289,7 @@ function WebBarChart({
   const gap = barW * 0.35;
 
   const bars = datasets.map((d, di) =>
-    d.data.map((v, i) => {
+    sanitizeSeries(d.data).map((v, i) => {
       const cx = PAD_LEFT + groupW * i + groupW / 2;
       const x0 = cx - ((barCount - 1) / 2) * (barW + gap) + di * (barW + gap) - barW / 2;
       const y0 = y(v);

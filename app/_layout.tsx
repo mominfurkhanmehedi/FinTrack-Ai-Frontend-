@@ -5,9 +5,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { useTheme } from '../hooks';
-import { mapSupabaseUser } from '../services/authService';
+import { authService, mapSupabaseUser } from '../services/authService';
 import { supabase } from '../services/supabase';
 import { useAppStore } from '../store';
+import { User } from '../types';
 
 /**
  * Root layout.
@@ -21,6 +22,7 @@ export default function RootLayout() {
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
   const hydrateFromSupabase = useAppStore((s) => s.hydrateFromSupabase);
+  const clearAllData = useAppStore((s) => s.clearAllData);
   const { isDark } = useTheme();
 
   // True while we check whether a real Supabase session exists on cold start.
@@ -30,34 +32,57 @@ export default function RootLayout() {
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Check for an existing session immediately on app start.
-    supabase.auth.getSession().then(({ data }: { data: any }) => {
-      if (!isMounted) return;
-      const sessionUser = data.session?.user;
-      // Only treat the session as authenticated when the email is actually
-      // confirmed. An unconfirmed session (right after signup) must NOT be
-      // routed to the tabs — it belongs on the OTP verification screen.
-      if (sessionUser && sessionUser.email_confirmed_at) {
-        setUser(mapSupabaseUser(sessionUser));
-        hydrateFromSupabase(sessionUser.id);
+    // Applies the signed-in user and loads their transactions (only after the
+    // session/token has been validated so the fetch carries a valid JWT).
+    const applyUser = async (nextUser: User | null) => {
+      if (nextUser) {
+        console.log('[auth] Authenticated user:', nextUser.id);
+        setUser(nextUser);
+        await hydrateFromSupabase(nextUser.id);
+      } else {
+        console.log('[auth] No authenticated user.');
+        setUser(null);
+        clearAllData();
       }
-      setIsCheckingSession(false);
-    });
+    };
+
+    // 1. Validate any persisted session on cold start. `auth.getUser()` checks
+    //    the token against Supabase and refreshes it if expired — a plain
+    //    `getSession()` only returns the stored JWT, which can be stale and
+    //    cause 401s on the first transactions request.
+    authService
+      .getCurrentUser()
+      .then((sessionUser) => {
+        if (isMounted) return applyUser(sessionUser);
+      })
+      .catch((err) => {
+        console.error('[auth] Session check failed:', err);
+        if (isMounted) applyUser(null);
+      })
+      .finally(() => {
+        if (isMounted) setIsCheckingSession(false);
+      });
 
     // 2. Keep listening for auth changes (sign in, sign out, token refresh)
-    // that happen anywhere in the app after startup.
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-      const sessionUser = session?.user;
-      // Same guard as above: signing up fires a SIGNED_IN event with an
-      // *unconfirmed* session. Ignore it so routing keeps the user on the OTP
-      // screen instead of racing to the tabs.
-      if (sessionUser && sessionUser.email_confirmed_at) {
-        setUser(mapSupabaseUser(sessionUser));
-        hydrateFromSupabase(sessionUser.id);
-      } else {
-        setUser(null);
-      }
-    });
+    //    that happen anywhere in the app after startup. `hydrateFromSupabase`
+    //    de-duplicates, so overlap with the boot check causes no extra fetches.
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event: string, session: any) => {
+        const sessionUser = session?.user;
+        // Guard: signing up fires a SIGNED_IN event with an *unconfirmed*
+        // session. Ignore it so routing keeps the user on the OTP screen
+        // instead of racing to the tabs.
+        const confirmed = Boolean(sessionUser && sessionUser.email_confirmed_at);
+        console.log(`[auth] event=${event} signedIn=${confirmed}`);
+        if (confirmed && isMounted) {
+          await applyUser(mapSupabaseUser(sessionUser));
+        } else if (event === 'SIGNED_OUT' && isMounted) {
+          console.log('[auth] Signed out — clearing transactions and goals.');
+          setUser(null);
+          clearAllData();
+        }
+      },
+    );
 
     return () => {
       isMounted = false;

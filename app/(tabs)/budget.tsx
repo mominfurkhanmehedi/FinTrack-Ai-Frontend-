@@ -39,7 +39,7 @@ export default function Budget() {
           const pct = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
           const complete = pct >= 100;
           return (
-            <Card key={goal.id} title={goal.title} subtitle={complete ? 'Completed' : 'In progress'}>
+            <Card key={goal.id} title={goal.title} subtitle={complete ? 'Completed 🎉' : 'In progress'}>
               <View className="flex-row items-center justify-between mb-2">
                 <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">{format(goal.saved)}</Text>
                 <Text className="text-sm text-gray-500 dark:text-gray-400">of {format(goal.target)}</Text>
@@ -47,12 +47,28 @@ export default function Budget() {
               <View className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
                 <View className="h-full rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
               </View>
-              <View className="flex-row justify-between mt-2">
+              <View className="flex-row justify-between mt-2 mb-3">
                 <Text className="text-sm text-gray-500">{Math.round(pct)}% saved</Text>
                 <Pressable accessibilityRole="button" onPress={() => deleteGoal(goal.id)}>
                   <Ionicons name="trash-outline" size={18} color="#ef4444" />
                 </Pressable>
               </View>
+              {/* Add Saving button */}
+              {!complete && (
+                <Pressable
+                  accessibilityRole="button"
+                  className="flex-row items-center justify-center gap-1.5 rounded-xl border border-brand-600 py-2.5 active:bg-brand-50"
+                  onPress={() =>
+                    router.push({
+                      pathname: ROUTES.MODALS.ADD_SAVING as never,
+                      params: { goalId: goal.id },
+                    })
+                  }
+                >
+                  <Ionicons name="add-circle-outline" size={18} color="#4f46e5" />
+                  <Text className="text-brand-600 font-semibold text-sm">Add Saving</Text>
+                </Pressable>
+              )}
             </Card>
           );
         })}

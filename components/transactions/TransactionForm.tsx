@@ -1,13 +1,35 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ComponentProps, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button, Input } from '../ui';
 import { TransactionType } from '../../types';
 import { isoToday } from '../../utils';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
+
+// `shadow*` style props are deprecated on web — use boxShadow there while
+// keeping the native shadow/elevation rendering on iOS/Android.
+const categoryCardShadow = Platform.select({
+  web: { boxShadow: '0 1px 4px rgba(0, 0, 0, 0.06)' },
+  default: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+});
+
+const iconBadgeShadow = Platform.select({
+  web: { boxShadow: '0 1px 4px rgba(0, 0, 0, 0.08)' },
+  default: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+});
 
 interface Category {
   label: string;
@@ -175,11 +197,8 @@ export function TransactionForm({
                   borderWidth: 1.5,
                   borderColor: '#e5e7eb',
                   padding: 18,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 4,
                   elevation: 2,
+                  ...categoryCardShadow,
                 })}
               >
                 {/* Icon badge */}
@@ -295,11 +314,8 @@ export function TransactionForm({
               justifyContent: 'center',
               borderWidth: 1.5,
               borderColor: activeCat?.border ?? '#e5e7eb',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.08,
-              shadowRadius: 4,
               elevation: 2,
+              ...iconBadgeShadow,
             }}
           >
             <Ionicons
