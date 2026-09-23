@@ -1,44 +1,142 @@
-import { AuthResult, User } from '../types';
+﻿import { AuthResult, User } from '../types';
+import { supabase } from './supabase';
 
 /**
- * Mock auth service.
- * Simulates a backend with small network delays so the auth flow behaves like a
- * real client/server round-trip. Swap these for calls against `api` (axios.ts)
- * when a backend exists.
+ * Supabase-backed auth service.
+ * Same AuthResult contract as the old mock version, so nothing that calls
+ * authService (login/signup screens, the store) needs to change.
  */
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+function toUser(supaUser: {
+  id: string;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+  user_metadata?: any;
+}): User {
+  return {
+    id: supaUser.id,
+    name: supaUser.user_metadata?.name ?? supaUser.email?.split('@')[0] ?? 'User',
+    email: supaUser.email ?? '',
+    avatar: supaUser.user_metadata?.avatar,
+  };
+}
 
-const nameFromEmail = (email: string): string =>
-  email
-    .split('@')[0]
-    .split(/[._-]/)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join(' ');
+/** Maps a Supabase session user to the app's User shape (used by app/_layout.tsx). */
+export function mapSupabaseUser(supaUser: {
+  id: string;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+  user_metadata?: any;
+}): User {
+  return toUser(supaUser);
+}
 
 export const authService = {
   async login(email: string, password: string): Promise<AuthResult> {
-    await delay(600);
-    if (!email || !password || password.length < 6) {
-      return { ok: false, error: 'Invalid email or password.' };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) {
+      return { ok: false, error: error?.message ?? 'Invalid email or password.' };
     }
-    const user: User = { name: nameFromEmail(email), email };
-    return { ok: true, user };
+    return { ok: true, user: toUser(data.user) };
   },
 
   async register(name: string, email: string, password: string): Promise<AuthResult> {
-    await delay(700);
-    if (!email || password.length < 6) {
-      return { ok: false, error: 'Password must be at least 6 characters.' };
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name: name.trim() } },
+    });
+    if (error || !data.user) {
+      return { ok: false, error: error?.message ?? 'Could not create account.' };
     }
-    return { ok: true, user: { name: name.trim() || nameFromEmail(email), email } };
+    // With email confirmation enabled, signUp returns session:null and the
+    // user isn't confirmed yet. Treat that as "pending" — the caller must
+    // route to the OTP verification screen, not treat the user as signed in.
+    const confirmed = Boolean(data.session && data.user.email_confirmed_at);
+    if (!confirmed) {
+      return { ok: true, needsEmailConfirmation: true };
+    }
+    return { ok: true, user: toUser(data.user) };
+  },
+
+  /** Verifies the 6-digit email confirmation code from signup. Starts a real session on success. */
+  async verifySignupOtp(email: string, token: string): Promise<AuthResult> {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'signup',
+    });
+    if (error || !data.user) {
+      return { ok: false, error: error?.message ?? 'Invalid or expired code.' };
+    }
+    return { ok: true, user: toUser(data.user) };
+  },
+
+  /** Re-sends the 6-digit email confirmation code for a pending signup. */
+  async resendSignupOtp(email: string): Promise<{ ok: boolean; error?: string }> {
+    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
   },
 
   async sendResetLink(email: string): Promise<{ ok: boolean; error?: string }> {
-    await delay(500);
-    if (!email.includes('@')) {
-      return { ok: false, error: 'Enter a valid email address.' };
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      return { ok: false, error: error.message };
     }
     return { ok: true };
+  },
+
+  async signOut(): Promise<void> {
+    await supabase.auth.signOut();
+  },
+
+  /** Re-hydrate the current session on app start (used in app/_layout.tsx). */
+  async getCurrentUser(): Promise<User | null> {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.user) return null;
+    return toUser(data.session.user);
+  },
+
+  /** Delete user account and all associated data. */
+  async deleteAccount(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      // Get current user
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData?.session?.user?.id) {
+        return { ok: false, error: 'No active session.' };
+      }
+
+      const userId = sessionData.session.user.id;
+
+      // Delete all user transactions
+      const { error: txError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('user_id', userId);
+
+      if (txError) {
+        console.error('[deleteAccount] Failed to delete transactions:', txError.message);
+        return { ok: false, error: 'Failed to delete transactions.' };
+      }
+
+      // Delete all user goals
+      const { error: goalError } = await supabase
+        .from('goals')
+        .delete()
+        .eq('user_id', userId);
+
+      if (goalError) {
+        console.error('[deleteAccount] Failed to delete goals:', goalError.message);
+        return { ok: false, error: 'Failed to delete goals.' };
+      }
+
+      return { ok: true };
+    } catch (error) {
+      console.error('[deleteAccount] Error:', error);
+      return { ok: false, error: 'An error occurred while deleting your account.' };
+    }
   },
 };

@@ -7,6 +7,7 @@ export const ROUTES = {
   LANDING: '/landing',
   LOGIN: '/login',
   SIGNUP: '/signup',
+  VERIFY_OTP: '/verify-otp',
   FORGOT_PASSWORD: '/forgot-password',
 
   DASHBOARD: '/dashboard',
@@ -26,6 +27,7 @@ export const ROUTES = {
   SETTINGS_SCREENS: {
     EDIT_PROFILE: '/edit-profile',
     CHANGE_PASSWORD: '/change-password',
+    DELETE_ACCOUNT: '/delete-account',
     NOTIFICATIONS: '/notifications',
     THEME: '/theme-picker',
     CURRENCY: '/currency-picker',

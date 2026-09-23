@@ -39,7 +39,11 @@ export default function Signup() {
     setLoading(true);
     const result = await authService.register(name, email, password);
     setLoading(false);
-    if (result.ok && result.user) {
+    if (result.ok && result.needsEmailConfirmation) {
+      // Email confirmation required — land on the OTP screen and wait for the
+      // code before treating the user as signed in.
+      router.replace(`/verify-otp?email=${encodeURIComponent(email)}`);
+    } else if (result.ok && result.user) {
       setUser(result.user);
       finishOnboarding();
       router.replace('/dashboard');

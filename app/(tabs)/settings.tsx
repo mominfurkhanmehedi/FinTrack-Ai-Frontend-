@@ -50,11 +50,9 @@ export default function Settings() {
   const currencyLabel = CURRENCIES.find((c) => c.code === currency)?.code ?? currency;
   const languageLabel = LANGUAGES.find((l) => l.code === language)?.label ?? language;
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
-      console.log('[signOut] before:', { user: useAppStore.getState().user, hasOnboarded: useAppStore.getState().hasOnboarded });
-      signOut();
-      console.log('[signOut] after:', { user: useAppStore.getState().user });
+      await signOut();
       router.replace(ROUTES.LOGIN);
     } catch (e) {
       console.error('[signOut] failed:', e);
@@ -98,6 +96,12 @@ export default function Settings() {
             icon="lock-closed"
             label="Change Password"
             onPress={() => router.push(ROUTES.SETTINGS_SCREENS.CHANGE_PASSWORD)}
+          />
+          <SettingRow
+            icon="trash"
+            label="Delete Account"
+            danger
+            onPress={() => router.push(ROUTES.SETTINGS_SCREENS.DELETE_ACCOUNT)}
           />
         </Card>
 

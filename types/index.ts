@@ -19,6 +19,7 @@ export interface Goal {
 }
 
 export interface User {
+  id: string;
   name: string;
   email: string;
   /** Emoji or single-char avatar marker. */
@@ -38,6 +39,8 @@ export interface AuthResult {
   ok: boolean;
   error?: string;
   user?: User;
+  /** True when signup succeeded but the email still needs to be confirmed. */
+  needsEmailConfirmation?: boolean;
 }
 
 /** Available display languages. */

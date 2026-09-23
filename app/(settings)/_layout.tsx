@@ -10,6 +10,7 @@ export default function SettingsSubLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="edit-profile" />
       <Stack.Screen name="change-password" />
+      <Stack.Screen name="delete-account" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="theme-picker" />
       <Stack.Screen name="currency-picker" />

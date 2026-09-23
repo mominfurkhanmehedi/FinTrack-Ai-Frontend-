@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native';
 
 import { TransactionForm } from '../../components/transactions/TransactionForm';
@@ -26,6 +26,8 @@ export default function AddTransaction() {
             category: values.category,
             date: values.date,
           });
+          // Close the modal after saving
+          setTimeout(() => router.back(), 100);
         }}
       />
     </SafeAreaView>

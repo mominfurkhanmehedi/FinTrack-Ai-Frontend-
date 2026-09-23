@@ -42,6 +42,9 @@ export interface ChartProps {
 const BRAND = COLORS.brand;
 const gray = (opacity = 1) => `rgba(107, 114, 128, ${opacity})`;
 
+// Helper to convert numbers to strings for SVG props on web
+const str = (n: number | string): string => String(n);
+
 function useChartWidth(): [number, (e: LayoutChangeEvent) => void] {
   const [width, setWidth] = useState(0);
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
@@ -186,8 +189,8 @@ function WebLineChart({
     const yy = y(v);
     grid.push(
       <G key={`grid-${t}`}>
-        <Line x1={PAD_LEFT} y1={yy} x2={width - PAD_RIGHT} y2={yy} stroke="#e5e7eb" strokeWidth={1} strokeDasharray="5,10" />
-        <SvgText x={PAD_LEFT - 6} y={yy + 4} fontSize={10} fill="#6b7280" textAnchor="end">
+        <Line x1={str(PAD_LEFT)} y1={str(yy)} x2={str(width - PAD_RIGHT)} y2={str(yy)} stroke="#e5e7eb" strokeWidth={str(1)} strokeDasharray="5,10" />
+        <SvgText x={str(PAD_LEFT - 6)} y={str(yy + 4)} fontSize={str(10)} fill="#6b7280" textAnchor="end">
           {Math.round(v)}
         </SvgText>
       </G>
@@ -201,25 +204,25 @@ function WebLineChart({
       .join(' ');
     return (
       <G key={`line-${di}`}>
-        <Polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+        <Polyline points={points} fill="none" stroke={color} strokeWidth={str(2)} strokeLinejoin="round" />
       </G>
     );
   });
 
   const dots = datasets.map((d, di) =>
     d.data.map((v, i) => (
-      <Circle key={`dot-${di}-${i}`} cx={x(i)} cy={y(v)} r={3} fill={d.color || BRAND} />
+      <Circle key={`dot-${di}-${i}`} cx={str(x(i))} cy={str(y(v))} r={str(3)} fill={d.color || BRAND} />
     ))
   );
 
   const xLabels = labels.map((l, i) => (
-    <SvgText key={`xlabel-${i}`} x={x(i)} y={height - 6} fontSize={10} fill="#6b7280" textAnchor="middle">
+    <SvgText key={`xlabel-${i}`} x={str(x(i))} y={str(height - 6)} fontSize={str(10)} fill="#6b7280" textAnchor="middle">
       {l}
     </SvgText>
   ));
 
   return (
-    <Svg width={width} height={height}>
+    <Svg width={str(width)} height={str(height)}>
       {grid}
       {lines}
       {dots}
@@ -253,8 +256,8 @@ function WebBarChart({
     const yy = y(v);
     grid.push(
       <G key={`grid-${t}`}>
-        <Line x1={PAD_LEFT} y1={yy} x2={width - PAD_RIGHT} y2={yy} stroke="#e5e7eb" strokeWidth={1} strokeDasharray="5,10" />
-        <SvgText x={PAD_LEFT - 6} y={yy + 4} fontSize={10} fill="#6b7280" textAnchor="end">
+        <Line x1={str(PAD_LEFT)} y1={str(yy)} x2={str(width - PAD_RIGHT)} y2={str(yy)} stroke="#e5e7eb" strokeWidth={str(1)} strokeDasharray="5,10" />
+        <SvgText x={str(PAD_LEFT - 6)} y={str(yy + 4)} fontSize={str(10)} fill="#6b7280" textAnchor="end">
           {Math.round(v)}
         </SvgText>
       </G>
@@ -273,9 +276,9 @@ function WebBarChart({
       const y0 = y(v);
       return (
         <G key={`bar-${di}-${i}`}>
-          <Rect x={x0} y={y0} width={barW} height={Math.max(PAD_TOP + plotH - y0, 0)} rx={3} fill={d.color || BRAND} />
+          <Rect x={str(x0)} y={str(y0)} width={str(barW)} height={str(Math.max(PAD_TOP + plotH - y0, 0))} rx={str(3)} fill={d.color || BRAND} />
           {v > 0 && (
-            <SvgText x={x0 + barW / 2} y={y0 - 4} fontSize={9} fill={d.color || BRAND} textAnchor="middle">
+            <SvgText x={str(x0 + barW / 2)} y={str(y0 - 4)} fontSize={str(9)} fill={d.color || BRAND} textAnchor="middle">
               {Math.round(v)}
             </SvgText>
           )}
@@ -285,13 +288,13 @@ function WebBarChart({
   );
 
   const xLabels = labels.map((l, i) => (
-    <SvgText key={`xlabel-${i}`} x={PAD_LEFT + groupW * i + groupW / 2} y={height - 6} fontSize={10} fill="#6b7280" textAnchor="middle">
+    <SvgText key={`xlabel-${i}`} x={str(PAD_LEFT + groupW * i + groupW / 2)} y={str(height - 6)} fontSize={str(10)} fill="#6b7280" textAnchor="middle">
       {l}
     </SvgText>
   ));
 
   return (
-    <Svg width={width} height={height}>
+    <Svg width={str(width)} height={str(height)}>
       {grid}
       {bars}
       {xLabels}
@@ -315,8 +318,8 @@ function WebPieChart({
 
   if (total <= 0) {
     return (
-      <Svg width={width} height={height}>
-        <Circle cx={cx} cy={cy} r={radius} fill="#e5e7eb" />
+      <Svg width={str(width)} height={str(height)}>
+        <Circle cx={str(cx)} cy={str(cy)} r={str(radius)} fill="#e5e7eb" />
       </Svg>
     );
   }
@@ -345,7 +348,7 @@ function WebPieChart({
       <G key={`seg-${i}`}>
         <Path d={path} fill={data[i].color} />
         {frac >= 0.05 && (
-          <SvgText x={lx} y={ly} fontSize={11} fill="#ffffff" textAnchor="middle" alignmentBaseline="central">
+          <SvgText x={str(lx)} y={str(ly)} fontSize={str(11)} fill="#ffffff" textAnchor="middle" alignmentBaseline="central">
             {Math.round(frac * 100)}%
           </SvgText>
         )}
@@ -353,8 +356,8 @@ function WebPieChart({
     );
     legendItems.push(
       <G key={`legend-${i}`}>
-        <Rect x={12} y={12 + i * 16} width={10} height={10} rx={2} fill={data[i].color} />
-        <SvgText x={28} y={21 + i * 16} fontSize={11} fill="#374151">
+        <Rect x={str(12)} y={str(12 + i * 16)} width={str(10)} height={str(10)} rx={str(2)} fill={data[i].color} />
+        <SvgText x={str(28)} y={str(21 + i * 16)} fontSize={str(11)} fill="#374151">
           {data[i].name}: {data[i].value}
         </SvgText>
       </G>
@@ -363,7 +366,7 @@ function WebPieChart({
   }
 
   return (
-    <Svg width={width} height={height}>
+    <Svg width={str(width)} height={str(height)}>
       {segments}
       {legendItems}
     </Svg>
