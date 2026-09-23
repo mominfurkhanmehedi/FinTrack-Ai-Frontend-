@@ -18,7 +18,7 @@ const DRAWER_WIDTH = 280;
 /**
  * SidebarDrawer (layout)
  * Slide-in navigation drawer shown on mobile / narrow web widths instead of
- * the fixed desktop sidebar. Slides from the left with a semi-transparent
+ * the fixed desktop sidebar. Slides from the RIGHT with a semi-transparent
  * backdrop; closes on backdrop tap, X, or navigation.
  */
 export function SidebarDrawer({
@@ -45,7 +45,7 @@ export function SidebarDrawer({
 
   const translateX = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [-DRAWER_WIDTH, 0],
+    outputRange: [DRAWER_WIDTH, 0],
   });
 
   const backdropOpacity = progress.interpolate({
@@ -74,7 +74,7 @@ export function SidebarDrawer({
         className="absolute top-0 bottom-0"
         style={{
           width: DRAWER_WIDTH,
-          left: 0,
+          right: 0,
           transform: [{ translateX }],
           backgroundColor: isDark ? '#111827' : '#ffffff',
           shadowColor: '#000',

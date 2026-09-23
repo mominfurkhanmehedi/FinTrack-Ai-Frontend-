@@ -28,9 +28,9 @@ export function useTheme(): { isDark: boolean; mode: ThemeMode } {
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      // 'light' and 'system' reset to follow the OS (light default); 'dark'
-      // forces the dark scheme.
-      Appearance.setColorScheme(isDark ? 'dark' : 'unspecified');
+      // 'dark' forces the dark scheme; 'light' and 'system' both explicitly
+      // apply the light color scheme so the OS dark setting doesn't bleed in.
+      Appearance.setColorScheme(isDark ? 'dark' : 'light');
       return;
     }
     // Web: toggle a "dark" class on the root element. NativeWind's class-based

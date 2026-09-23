@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TransactionForm } from '../../components/transactions/TransactionForm';
 import { useAppStore } from '../../store';
