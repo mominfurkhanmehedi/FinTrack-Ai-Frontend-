@@ -4,6 +4,8 @@ import { ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useI18n } from '../../i18n';
+
 /**
  * SettingsScreen (settings)
  * Shared scaffold for settings sub-screens: a safe-area wrapper with a title
@@ -22,6 +24,8 @@ export function SettingsScreen({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const { t } = useI18n();
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50 dark:bg-gray-950">
       <View className="px-4 pt-2 pb-3 flex-row items-center justify-between bg-gray-50 dark:bg-gray-950">
@@ -29,7 +33,7 @@ export function SettingsScreen({
           <Pressable
             onPress={() => router.back()}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
+            accessibilityLabel={t('common.goBackLabel')}
             hitSlop={8}
             className="w-11 h-11 items-center justify-center rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700"
           >

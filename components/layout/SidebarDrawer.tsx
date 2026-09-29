@@ -12,6 +12,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../hooks/useTheme';
+import { useI18n } from '../../i18n';
+import { POINTER_EVENTS } from '../ui';
 import { SidebarNav } from './SidebarNav';
 
 const DRAWER_WIDTH = 280;
@@ -30,9 +32,14 @@ const drawerShadow = Platform.select({
 
 /**
  * SidebarDrawer (layout)
- * Slide-in navigation drawer shown on mobile / narrow web widths instead of
- * the fixed desktop sidebar. Slides from the RIGHT with a semi-transparent
- * backdrop; closes on backdrop tap, X, or navigation.
+ * Slide-in navigation drawer that opens from the RIGHT edge of the screen.
+ *
+ * - The drawer PANEL is always mounted (so it can animate in/out) but while
+ *   closed it is held fully outside the viewport via translateX(100%) and set
+ *   to a low z-index with `style.pointerEvents: 'none'` — it never sits above or
+ *   blocks the dashboard / bottom navigation.
+ * - The BACKDROP is only rendered while the drawer is open and closes the
+ *   drawer when tapped. The X button in the panel header also closes it.
  */
 export function SidebarDrawer({
   open,
@@ -45,6 +52,7 @@ export function SidebarDrawer({
 }) {
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
+  const { t } = useI18n();
   const progress = useRef(new Animated.Value(open ? 1 : 0)).current;
 
   useEffect(() => {
@@ -57,6 +65,8 @@ export function SidebarDrawer({
     }).start();
   }, [open, progress]);
 
+  // 0 → translateX(DRAWER_WIDTH) (fully off-screen right)
+  // 1 → translateX(0) (slid in against the right edge)
   const translateX = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [DRAWER_WIDTH, 0],
@@ -67,34 +77,64 @@ export function SidebarDrawer({
     outputRange: [0, 0.5],
   });
 
+  // Fixed to the viewport on web for a true overlay (height 100vh); absolute
+  // (full-screen parent) on native. RN's DimensionValue type doesn't model
+  // "vh", so cast it — react-native-web handles it correctly at runtime.
+  const overlayStyle =
+    Platform.OS === 'web'
+      ? { position: 'fixed' as const, top: 0, left: 0, right: 0, height: '100vh' as never }
+      : { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 };
+
+  const panelStyle =
+    Platform.OS === 'web'
+      ? { position: 'fixed' as const, top: 0, right: 0, height: '100vh' as never }
+      : { position: 'absolute' as const, top: 0, right: 0, bottom: 0 };
+
   const navigate = (route: string) => {
     onClose();
     router.push(route as never);
   };
 
   return (
-    <View
-      className="absolute inset-0 z-50"
-      style={{ pointerEvents: open ? 'auto' : 'none' }}
-      accessibilityViewIsModal={open}
-    >
-      {/* Backdrop */}
-      <Animated.View className="absolute inset-0 bg-black" style={{ opacity: backdropOpacity }}>
-        <Pressable className="flex-1" onPress={onClose} accessibilityRole="button" />
-      </Animated.View>
+    <>
+      {/* Backdrop — exists ONLY while the sidebar is open (requirement: the
+          overlay must not linger when closed). Tapping it closes the drawer. */}
+      {open && (
+        <Animated.View
+          style={[
+            overlayStyle,
+            { zIndex: 1000, backgroundColor: '#000', opacity: backdropOpacity },
+          ]}
+        >
+          <Pressable
+            className="flex-1"
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={t('nav.closeMenu')}
+          />
+        </Animated.View>
+      )}
 
-      {/* Drawer panel — solid/opaque background so page content never bleeds through */}
+      {/* Drawer panel — pinned to the right edge, full height. When closed it
+          sits outside the viewport (translateX(100%)), at z-index 0 and with
+          pointer events disabled, so it never overlaps the page or intercepts
+          taps on the dashboard / bottom navigation while animating out. */}
       <Animated.View
-        className="absolute top-0 bottom-0"
-        style={{
-          width: DRAWER_WIDTH,
-          right: 0,
-          transform: [{ translateX }],
-          backgroundColor: isDark ? '#111827' : '#ffffff',
-          elevation: 16,
-          zIndex: 2,
-          ...drawerShadow,
-        }}
+        style={[
+          panelStyle,
+          {
+            right: 0,
+            width: DRAWER_WIDTH,
+            backgroundColor: isDark ? '#111827' : '#ffffff',
+            transform: [{ translateX }],
+            zIndex: open ? 1100 : 0,
+            elevation: 16,
+            ...drawerShadow,
+          },
+          // Applied via style rather than the deprecated `pointerEvents` prop.
+          open ? POINTER_EVENTS.auto : POINTER_EVENTS.none,
+        ]}
+        accessibilityViewIsModal={open}
       >
         <View style={{ paddingTop: insets.top + 12 }} className="px-4 pb-4 flex-row items-center justify-between border-b border-gray-200 dark:border-gray-800">
           <View className="flex-row items-center gap-2">
@@ -107,7 +147,7 @@ export function SidebarDrawer({
             onPress={onClose}
             className="p-2"
             accessibilityRole="button"
-            accessibilityLabel="Close menu"
+            accessibilityLabel={t('nav.closeMenu')}
             hitSlop={8}
           >
             <Ionicons name="close" size={24} color="#6b7280" />
@@ -118,6 +158,6 @@ export function SidebarDrawer({
           <SidebarNav active={active} onSelect={navigate} />
         </View>
       </Animated.View>
-    </View>
+    </>
   );
 }

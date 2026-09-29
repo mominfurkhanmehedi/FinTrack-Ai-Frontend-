@@ -5,6 +5,7 @@ import { View } from 'react-native';
 
 import { HamburgerButton } from '../../components/layout/HamburgerButton';
 import { SidebarDrawer } from '../../components/layout/SidebarDrawer';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { useActiveRoute } from '../../hooks/useActiveRoute';
 
 /**
@@ -12,9 +13,17 @@ import { useActiveRoute } from '../../hooks/useActiveRoute';
  * Single <Tabs> navigator for all 5 main tabs.
  *
  * Navigation is a slide-in <SidebarDrawer> at every screen size (desktop/web
- * and mobile alike). The sidebar is hidden by default; a top-left hamburger
- * opens it, and it slides in over a semi-transparent backdrop. Closes on
- * backdrop tap, the X, a hamburger re-tap, or selecting a nav item.
+ * and mobile alike). The sidebar is CLOSED by default (`isSidebarOpen` starts
+ * `false`) and is never auto-opened on load, refresh, navigation, or re-render.
+ *
+ * - The top-right hamburger ONLY opens the sidebar (sets `isSidebarOpen` true).
+ * - The X button inside the sidebar ONLY closes it (sets it false).
+ * - Tapping the backdrop also closes it.
+ *
+ * One boolean `isSidebarOpen` is the single source of truth for the
+ * open/close state — there are no duplicate drawer components or conflicting
+ * states. The sidebar overlays (never pushes) the page when open and is fully
+ * out of the viewport when closed.
  *
  * The `tabBar` prop must be a STABLE reference (useCallback) to avoid React
  * Navigation re-subscribing on every render ("Maximum update depth exceeded").
@@ -31,21 +40,34 @@ const TAB_ICONS: Record<string, { focused: IoniconName; unfocused: IoniconName }
   settings: { focused: 'settings', unfocused: 'settings-outline' },
 };
 
-export default function TabsLayout() {
-  const active = useActiveRoute();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+const TAB_LABELS: Record<string, TranslationKey> = {
+  dashboard: 'nav.dashboard',
+  transactions: 'nav.transactions',
+  insights: 'nav.insights',
+  budget: 'nav.budget',
+  reports: 'nav.reports',
+  settings: 'nav.settings',
+};
 
-  const toggleDrawer = useCallback(() => {
-    setDrawerOpen((open) => !open);
-  }, []);
+export default function TabsLayout() {
+  const { t } = useI18n();
+  const active = useActiveRoute();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const openSidebar = useCallback(() => setIsSidebarOpen(true), []);
+  const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
 
   return (
     <View className="flex-1">
       <Tabs
         screenOptions={({ route }) => {
           const icon = TAB_ICONS[route.name] ?? { focused: 'ellipse', unfocused: 'ellipse-outline' };
+          const labelKey = TAB_LABELS[route.name];
           return {
             headerShown: false,
+            ...(labelKey
+              ? { tabBarLabel: t(labelKey), tabBarAccessibilityLabel: t(labelKey) }
+              : {}),
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons name={focused ? icon.focused : icon.unfocused} size={size} color={color} />
             ),
@@ -62,11 +84,12 @@ export default function TabsLayout() {
         <Tabs.Screen name="settings" />
       </Tabs>
 
-      {/* Hamburger + slide-in drawer, shown at every screen size */}
-      <HamburgerButton onPress={toggleDrawer} />
+      {/* Hamburger + slide-in drawer, shown at every screen size. The hamburger
+          is hidden while the sidebar is open so it never covers the X button. */}
+      {!isSidebarOpen && <HamburgerButton onPress={openSidebar} />}
       <SidebarDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        open={isSidebarOpen}
+        onClose={closeSidebar}
         active={active}
       />
     </View>

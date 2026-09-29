@@ -1,5 +1,5 @@
 import { useAppStore } from '../store';
-import { formatCompact, formatCurrency } from '../utils';
+import { currencySymbol, formatCompact, formatCurrency } from '../utils';
 
 /**
  * useMoney
@@ -11,6 +11,7 @@ export function useMoney() {
 
   return {
     currency,
+    symbol: currencySymbol(currency),
     format: (amount: number) => formatCurrency(amount, currency),
     formatCompact: (amount: number) => formatCompact(amount, currency),
   };

@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { TransactionForm } from '../../components/transactions/TransactionForm';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 
 /**
@@ -12,6 +13,7 @@ export default function EditTransaction() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const transactions = useAppStore((s) => s.transactions);
   const updateTransaction = useAppStore((s) => s.updateTransaction);
+  const { t } = useI18n();
 
   const tx = transactions.find((t) => t.id === id);
   if (!tx) {
@@ -29,7 +31,7 @@ export default function EditTransaction() {
           category: tx.category,
           date: tx.date,
         }}
-        submitLabel="Update transaction"
+        submitLabel={t('transactions.form.updateTransaction')}
         onSubmit={(values) => {
           updateTransaction(id, {
             title: values.title,

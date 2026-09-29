@@ -5,6 +5,7 @@ import { Platform, Pressable, Text, View } from 'react-native';
 import { SettingsScreen } from '../../components/settings';
 import { Button, Card, Input } from '../../components/ui';
 import { ROUTES } from '../../constants/routes';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 
 /**
@@ -21,15 +22,16 @@ export default function DeleteAccount() {
   const [done, setDone] = useState(false);
 
   const deleteAccount = useAppStore((s) => s.deleteAccount);
+  const { t } = useI18n();
 
   const handleDelete = async () => {
     if (!password) {
-      setError('Enter your password to confirm.');
+      setError(t('deleteAccount.errPassword'));
       return;
     }
 
     if (!confirmed) {
-      setError('Please confirm that you want to delete your account.');
+      setError(t('deleteAccount.errConfirm'));
       return;
     }
 
@@ -41,7 +43,7 @@ export default function DeleteAccount() {
 
       if (!result.ok) {
         setLoading(false);
-        setError(result.error || 'Failed to delete account. Please try again.');
+        setError(result.error || t('deleteAccount.errFailed'));
         return;
       }
 
@@ -52,12 +54,12 @@ export default function DeleteAccount() {
     } catch (err) {
       setLoading(false);
       console.error('[DeleteAccount] error:', err);
-      setError('An unexpected error occurred. Please try again.');
+      setError(t('deleteAccount.errUnexpected'));
     }
   };
 
   const showConfirmation = () => {
-    const message = 'Are you absolutely sure? This action cannot be undone. All your data will be permanently deleted.';
+    const message = t('deleteAccount.confirmTitle');
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       if (window.confirm(message)) {
         setConfirmed(true);
@@ -69,17 +71,22 @@ export default function DeleteAccount() {
   };
 
   return (
-    <SettingsScreen title="Delete Account" subtitle="Permanently delete your account">
+    <SettingsScreen title={t('deleteAccount.title')} subtitle={t('deleteAccount.subtitle')}>
       <Card className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
-        <Text className="text-sm font-semibold text-red-900 dark:text-red-200 mb-2">⚠️ Warning</Text>
+        <Text className="text-sm font-semibold text-red-900 dark:text-red-200 mb-2">
+          {t('deleteAccount.warning')}
+        </Text>
         <Text className="text-sm text-red-800 dark:text-red-300 leading-5">
-          Deleting your account is permanent and irreversible. This will:
+          {t('deleteAccount.warningBody')}
         </Text>
         <Text className="text-sm text-red-800 dark:text-red-300 mt-2 ml-3">
-          • Delete your account and all personal information{'\n'}
-          • Remove all transactions and goals{'\n'}
-          • Cancel any subscriptions{'\n'}
-          • Disable access to your data
+          {t('deleteAccount.warningList1')}
+          {'\n'}
+          {t('deleteAccount.warningList2')}
+          {'\n'}
+          {t('deleteAccount.warningList3')}
+          {'\n'}
+          {t('deleteAccount.warningList4')}
         </Text>
       </Card>
 
@@ -87,7 +94,7 @@ export default function DeleteAccount() {
 
       <Card>
         <Input
-          label="Enter your password"
+          label={t('deleteAccount.enterPassword')}
           value={password}
           onChangeText={setPassword}
           secure
@@ -112,7 +119,7 @@ export default function DeleteAccount() {
             {confirmed && <Text className="text-white font-bold text-lg">✓</Text>}
           </Pressable>
           <Text className="flex-1 text-sm text-gray-700 dark:text-gray-300">
-            I understand that this action cannot be undone
+            {t('deleteAccount.iUnderstand')}
           </Text>
         </View>
       </Card>
@@ -122,11 +129,13 @@ export default function DeleteAccount() {
       {error && <Text className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</Text>}
 
       {done && (
-        <Text className="text-sm text-green-600 dark:text-green-400 mb-3">Account deleted successfully. Redirecting...</Text>
+        <Text className="text-sm text-green-600 dark:text-green-400 mb-3">
+          {t('deleteAccount.done')}
+        </Text>
       )}
 
       <Button
-        title={loading ? 'Deleting...' : 'Delete My Account'}
+        title={loading ? t('common.deleting') : t('deleteAccount.deleteMyAccount')}
         variant="danger"
         fullWidth
         onPress={handleDelete}

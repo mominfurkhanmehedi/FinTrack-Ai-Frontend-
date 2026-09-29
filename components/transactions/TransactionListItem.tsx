@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import { CATEGORY_KEYS } from './TransactionForm';
 import { Transaction } from '../../types';
+import { useI18n } from '../../i18n';
 import { formatDate } from '../../utils';
 import { useMoney } from '../../hooks';
 
@@ -17,7 +19,12 @@ export function TransactionListItem({
   onPress?: (tx: Transaction) => void;
 }) {
   const { format } = useMoney();
+  const { t, locale } = useI18n();
   const isIncome = transaction.type === 'income';
+  const categoryLabel =
+    transaction.category === 'Savings'
+      ? t('categories.savings')
+      : t(`categories.${CATEGORY_KEYS[transaction.category] ?? 'other'}.label`);
   return (
     <Pressable
       onPress={() => onPress?.(transaction)}
@@ -34,7 +41,7 @@ export function TransactionListItem({
       <View className="flex-1 ml-3">
         <Text className="text-base font-medium text-gray-900">{transaction.title}</Text>
         <Text className="text-sm text-gray-500">
-          {transaction.category} · {formatDate(transaction.date)}
+          {categoryLabel} · {formatDate(transaction.date, locale)}
         </Text>
       </View>
       <Text className={`text-base font-semibold ${isIncome ? 'text-green-600' : 'text-gray-900'}`}>

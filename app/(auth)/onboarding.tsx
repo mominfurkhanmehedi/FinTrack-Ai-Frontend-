@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 
 /**
@@ -13,6 +14,7 @@ import { useAppStore } from '../../store';
  */
 export default function Onboarding() {
   const finishOnboarding = useAppStore((s) => s.finishOnboarding);
+  const { t } = useI18n();
 
   const start = () => {
     finishOnboarding();
@@ -27,20 +29,34 @@ export default function Onboarding() {
             <View className="w-20 h-20 rounded-3xl bg-brand-600 items-center justify-center mb-4">
               <Ionicons name="logo-electron" size={44} color="#ffffff" />
             </View>
-            <Text className="text-3xl font-bold text-gray-900 text-center">Welcome to FinTrack AI</Text>
+            <Text className="text-3xl font-bold text-gray-900 text-center">
+              {t('auth.onboarding.welcome')}
+            </Text>
           </View>
 
           <View className="gap-4">
-            <Step icon="wallet" title="Track everything" body="Log income and expenses in seconds and always know your balance." />
-            <Step icon="flag" title="Hit your goals" body="Build budgets and savings goals with progress you can see." />
-            <Step icon="sparkles" title="AI-powered insights" body="Get smart, data-driven guidance on how to spend smarter." />
+            <Step
+              icon="wallet"
+              title={t('auth.onboarding.step1Title')}
+              body={t('auth.onboarding.step1Body')}
+            />
+            <Step
+              icon="flag"
+              title={t('auth.onboarding.step2Title')}
+              body={t('auth.onboarding.step2Body')}
+            />
+            <Step
+              icon="sparkles"
+              title={t('auth.onboarding.step3Title')}
+              body={t('auth.onboarding.step3Body')}
+            />
           </View>
         </View>
 
         <View className="pt-8 pb-4">
-          <Button title="Get started" fullWidth onPress={start} />
+          <Button title={t('auth.onboarding.getStarted')} fullWidth onPress={start} />
           <Pressable className="items-center py-3 mt-2" accessibilityRole="button" onPress={() => router.replace('/login')}>
-            <Text className="text-gray-500">I already have an account</Text>
+            <Text className="text-gray-500">{t('auth.onboarding.alreadyHaveAccount')}</Text>
           </Pressable>
         </View>
       </ScrollView>

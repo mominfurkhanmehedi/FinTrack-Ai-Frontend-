@@ -3,8 +3,10 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CATEGORY_KEYS } from '../../components/transactions/TransactionForm';
 import { Button } from '../../components/ui';
 import { ROUTES } from '../../constants/routes';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 import { useMoney } from '../../hooks';
 import { formatDate } from '../../utils';
@@ -18,6 +20,7 @@ export default function TransactionDetail() {
   const transactions = useAppStore((s) => s.transactions);
   const deleteTransaction = useAppStore((s) => s.deleteTransaction);
   const { format } = useMoney();
+  const { t, locale } = useI18n();
 
   const tx = transactions.find((t) => t.id === id);
   if (!tx) {
@@ -26,28 +29,36 @@ export default function TransactionDetail() {
   }
 
   const isIncome = tx.type === 'income';
+  const categoryLabel =
+    tx.category === 'Savings'
+      ? t('categories.savings')
+      : t(`categories.${CATEGORY_KEYS[tx.category] ?? 'other'}.label`);
 
   const onDelete = () => {
-    Alert.alert('Delete transaction', `Remove "${tx.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteTransaction(tx.id);
-          router.back();
+    Alert.alert(
+      t('transactions.detail.deleteTitle'),
+      t('transactions.detail.deleteMessage', { title: tx.title }),
+      [
+        { text: t('transactions.detail.cancel'), style: 'cancel' },
+        {
+          text: t('transactions.detail.delete'),
+          style: 'destructive',
+          onPress: () => {
+            deleteTransaction(tx.id);
+            router.back();
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   return (
     <SafeAreaView className="flex-1 bg-white">
       <ScrollView contentContainerClassName="p-6">
         <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-2xl font-bold text-gray-900">Transaction</Text>
+          <Text className="text-2xl font-bold text-gray-900">{t('transactions.detail.title')}</Text>
           <Pressable accessibilityRole="button" onPress={() => router.back()}>
-            <Text className="text-brand-600 font-semibold">Close</Text>
+            <Text className="text-brand-600 font-semibold">{t('transactions.detail.close')}</Text>
           </Pressable>
         </View>
 
@@ -64,20 +75,23 @@ export default function TransactionDetail() {
         </View>
 
         <View className="rounded-xl border border-gray-200 divide-y divide-gray-100">
-          <Row label="Category" value={tx.category} />
-          <Row label="Date" value={formatDate(tx.date)} />
-          <Row label="Type" value={isIncome ? 'Income' : 'Expense'} />
+          <Row label={t('transactions.detail.category')} value={categoryLabel} />
+          <Row label={t('transactions.detail.date')} value={formatDate(tx.date, locale)} />
+          <Row
+            label={t('transactions.detail.type')}
+            value={isIncome ? t('transactions.income') : t('transactions.expense')}
+          />
         </View>
 
         <View className="h-8" />
         <Button
-          title="Edit"
+          title={t('transactions.detail.edit')}
           variant="secondary"
           fullWidth
           onPress={() => router.push(`${ROUTES.MODALS.EDIT_TRANSACTION}?id=${tx.id}`)}
         />
         <View className="h-3" />
-        <Button title="Delete" variant="danger" fullWidth onPress={onDelete} />
+        <Button title={t('transactions.detail.delete')} variant="danger" fullWidth onPress={onDelete} />
       </ScrollView>
     </SafeAreaView>
   );

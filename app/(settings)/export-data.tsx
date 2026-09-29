@@ -5,6 +5,7 @@ import { Alert, Platform, Text, View } from 'react-native';
 
 import { SettingsScreen } from '../../components/settings';
 import { Button, Card } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 import { formatDate } from '../../utils';
 
@@ -17,6 +18,7 @@ import { formatDate } from '../../utils';
 export default function ExportData() {
   const transactions = useAppStore((s) => s.transactions);
   const [exporting, setExporting] = useState(false);
+  const { t } = useI18n();
 
   const buildCsv = (): string => {
     const header = 'id,title,amount,type,category,date';
@@ -40,32 +42,39 @@ export default function ExportData() {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
-        Alert.alert('Export complete', `Downloaded ${filename}.`);
+        Alert.alert(t('exportData.exportCompleteTitle'), t('exportData.downloaded', { file: filename }));
       } else {
         const file = `${FileSystem.cacheDirectory}${filename}`;
         await FileSystem.writeAsStringAsync(file, csv);
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(file, { mimeType: 'text/csv', dialogTitle: 'Export transactions' });
+          await Sharing.shareAsync(file, { mimeType: 'text/csv', dialogTitle: t('exportData.shareDialogTitle') });
         } else {
-          Alert.alert('Export complete', `Saved to ${file}`);
+          Alert.alert(t('exportData.exportCompleteTitle'), t('exportData.savedTo', { file }));
         }
       }
     } catch (e) {
-      Alert.alert('Export failed', e instanceof Error ? e.message : 'Something went wrong.');
+      Alert.alert(
+        t('exportData.exportFailedTitle'),
+        e instanceof Error ? e.message : t('common.unexpectedError'),
+      );
     } finally {
       setExporting(false);
     }
   };
 
   return (
-    <SettingsScreen title="Export Data" subtitle="Download your transactions">
+    <SettingsScreen title={t('exportData.title')} subtitle={t('exportData.subtitle')}>
       <Card>
         <Text className="text-base text-gray-700 dark:text-gray-300 leading-6">
-          Export all {transactions.length} transactions as a CSV file. The file includes title,
-          amount, type, category, and date for every entry.
+          {t('exportData.body', { count: transactions.length })}
         </Text>
         <View className="h-4" />
-        <Button title={exporting ? 'Preparing…' : 'Export CSV'} onPress={doExport} loading={exporting} fullWidth />
+        <Button
+          title={exporting ? t('common.preparing') : t('exportData.exportCsv')}
+          onPress={doExport}
+          loading={exporting}
+          fullWidth
+        />
       </Card>
     </SettingsScreen>
   );

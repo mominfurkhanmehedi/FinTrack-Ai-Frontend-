@@ -1,99 +1,91 @@
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { Text } from 'react-native';
 
-import { Card, Chart, ResponsiveContainer, ResponsiveGrid, ScreenHeader } from '../../components/ui';
+import { Card, ResponsiveContainer, ScreenHeader } from '../../components/ui';
 import {
   BalanceCard,
+  DashboardLayout,
+  DashboardPanel,
   NetChange,
   QuickActions,
   RecentActivity,
+  SafeToSpendCard,
+  SpendingOverview,
 } from '../../components/dashboard';
 import { ROUTES } from '../../constants/routes';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 import { Transaction } from '../../types';
-import { formatCurrency, isoToday, netBalance, sumByType } from '../../utils';
+import { netBalance, sumByType } from '../../utils';
 
 /**
  * Screen: Dashboard
  * Tab: Dashboard
  *
- * Responsive layout: <ResponsiveGrid> stacks cards on mobile and forms a
- * multi-column grid on tablet/desktop/web. Includes an income-vs-expenses
- * chart built from the store's transactions.
+ * Responsive layout via <DashboardLayout>: the four summary cards sit in a
+ * single 4-column row on desktop, 2 columns on tablet, and stack on mobile.
+ * Spending Overview and Recent Activity stretch to use the available width
+ * (half-row on desktop, full row on tablet/mobile) instead of being squeezed
+ * into narrow thirds. All calculations/navigation are unchanged.
  */
 export default function Dashboard() {
   const transactions = useAppStore((s) => s.transactions);
+  const { t } = useI18n();
 
   const income = useMemo(() => sumByType(transactions, 'income'), [transactions]);
   const expenses = useMemo(() => sumByType(transactions, 'expense'), [transactions]);
   const balance = useMemo(() => netBalance(transactions), [transactions]);
-
-  const chartData = useMemo(() => buildChartData(transactions), [transactions]);
 
   const openAdd = (type: Transaction['type']) =>
     router.push(`${ROUTES.MODALS.ADD_TRANSACTION}?type=${type}`);
 
   return (
     <ResponsiveContainer>
-      <ScreenHeader title="Dashboard" subtitle="Your finances at a glance" />
-      <ResponsiveGrid>
-        <Card>
-          <BalanceCard balance={balance} />
-        </Card>
-        <Card title="Income vs expenses">
-          <NetChange income={income} expenses={expenses} />
-        </Card>
-        <Card title="Quick actions">
-          <QuickActions
-            onAddIncome={() => openAdd('income')}
-            onAddExpense={() => openAdd('expense')}
-            onAddGoal={() => router.push(ROUTES.MODALS.ADD_GOAL)}
-          />
-        </Card>
-        <Card title="Spending overview">
-          {transactions.length > 0 ? (
-            <Chart
-              kind="bar"
-              title="Last 7 days"
-              labels={chartData.labels}
-              datasets={[
-                { data: chartData.income, color: '#22c55e', name: 'Income' },
-                { data: chartData.expenses, color: '#ef4444', name: 'Expenses' },
-              ]}
+      <ScreenHeader title={t('dashboard.screenTitle')} subtitle={t('dashboard.screenSubtitle')} />
+      <DashboardLayout>
+        <DashboardPanel>
+          <Card className="flex-1">
+            <BalanceCard balance={balance} />
+          </Card>
+        </DashboardPanel>
+
+        <DashboardPanel>
+          <Card title={t('dashboard.cardSafeToSpend')} className="flex-1">
+            <SafeToSpendCard />
+          </Card>
+        </DashboardPanel>
+
+        <DashboardPanel>
+          <Card title={t('dashboard.cardIncomeVsExpenses')} className="flex-1">
+            <NetChange income={income} expenses={expenses} />
+          </Card>
+        </DashboardPanel>
+
+        <DashboardPanel>
+          <Card title={t('dashboard.cardQuickActions')} className="flex-1">
+            <QuickActions
+              onAddIncome={() => openAdd('income')}
+              onAddExpense={() => openAdd('expense')}
+              onAddGoal={() => router.push(ROUTES.MODALS.ADD_GOAL)}
             />
-          ) : (
-            <Text className="text-sm text-gray-500">No transactions to chart yet.</Text>
-          )}
-        </Card>
-        <Card title="Recent activity">
-          <RecentActivity
-            transactions={transactions}
-            onPressTransaction={(id) => router.push(`${ROUTES.MODALS.TRANSACTION_DETAIL}?id=${id}`)}
-          />
-        </Card>
-      </ResponsiveGrid>
+          </Card>
+        </DashboardPanel>
+
+        <DashboardPanel span={2}>
+          <Card title={t('dashboard.cardSpendingOverview')} className="flex-1">
+            <SpendingOverview />
+          </Card>
+        </DashboardPanel>
+
+        <DashboardPanel span={2}>
+          <Card title={t('dashboard.cardRecentActivity')} className="flex-1">
+            <RecentActivity
+              transactions={transactions}
+              onPressTransaction={(id) => router.push(`${ROUTES.MODALS.TRANSACTION_DETAIL}?id=${id}`)}
+            />
+          </Card>
+        </DashboardPanel>
+      </DashboardLayout>
     </ResponsiveContainer>
   );
-}
-
-/** Aggregate daily income/expenses for the trailing 7 days for the chart. */
-function buildChartData(txs: Transaction[]) {
-  const days: { label: string; income: number; expenses: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const iso = isoToday(i);
-    const day = new Date(iso + 'T00:00:00');
-    const label = day.toLocaleDateString('en-US', { weekday: 'short' });
-    const dayTxs = txs.filter((t) => t.date === iso);
-    days.push({
-      label,
-      income: sumByType(dayTxs, 'income'),
-      expenses: sumByType(dayTxs, 'expense'),
-    });
-  }
-  return {
-    labels: days.map((d) => d.label),
-    income: days.map((d) => d.income),
-    expenses: days.map((d) => d.expenses),
-  };
 }

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button, Input } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { authService } from '../../services';
 import { useAppStore } from '../../store';
 
@@ -18,6 +19,7 @@ export default function VerifyOtp() {
   const setUser = useAppStore((s) => s.setUser);
   const finishOnboarding = useAppStore((s) => s.finishOnboarding);
   const hydrateFromSupabase = useAppStore((s) => s.hydrateFromSupabase);
+  const { t } = useI18n();
 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,11 +29,11 @@ export default function VerifyOtp() {
 
   const onVerify = async () => {
     if (!email) {
-      setError('Missing email — please sign up again.');
+      setError(t('auth.verifyOtp.errMissingEmail'));
       return;
     }
     if (code.trim().length !== 6) {
-      setError('Enter the 6-digit code from your email.');
+      setError(t('auth.verifyOtp.errCode'));
       return;
     }
 
@@ -46,7 +48,7 @@ export default function VerifyOtp() {
       hydrateFromSupabase(result.user.id);
       router.replace('/dashboard');
     } else {
-      setError(result.error ?? 'Invalid or expired code.');
+      setError(result.error ?? t('auth.verifyOtp.errInvalid'));
     }
   };
 
@@ -57,8 +59,8 @@ export default function VerifyOtp() {
     setResending(true);
     const result = await authService.resendSignupOtp(email);
     setResending(false);
-    setNotice(result.ok ? 'A new code has been sent to your email.' : null);
-    if (!result.ok) setError(result.error ?? 'Could not resend code.');
+    setNotice(result.ok ? t('auth.verifyOtp.noticeResent') : null);
+    if (!result.ok) setError(result.error ?? t('auth.verifyOtp.errResend'));
   };
 
   return (
@@ -67,15 +69,17 @@ export default function VerifyOtp() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="flex-grow justify-center px-8 py-10">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Verify your email</Text>
+        <Text className="text-3xl font-bold text-gray-900 mb-2">
+          {t('auth.verifyOtp.verifyYourEmail')}
+        </Text>
         <Text className="text-base text-gray-500 mb-8">
           {email
-            ? `Enter the 6-digit code we sent to ${email}.`
-            : 'Enter the 6-digit code we sent to your email.'}
+            ? t('auth.verifyOtp.withEmail', { email })
+            : t('auth.verifyOtp.noEmail')}
         </Text>
 
         <Input
-          label="Verification code"
+          label={t('auth.verifyOtp.verificationCode')}
           value={code}
           onChangeText={(t) => {
             setCode(t.replace(/[^0-9]/g, '').slice(0, 6));
@@ -89,13 +93,13 @@ export default function VerifyOtp() {
 
         {notice ? <Text className="text-sm text-green-600 mb-2">{notice}</Text> : null}
 
-        <Button title="Verify" onPress={onVerify} loading={loading} fullWidth />
+        <Button title={t('auth.verifyOtp.verify')} onPress={onVerify} loading={loading} fullWidth />
 
         <View className="flex-row justify-center mt-6">
-          <Text className="text-gray-500">Didn't get a code? </Text>
+          <Text className="text-gray-500">{t('auth.verifyOtp.didntGetCode')}</Text>
           <Pressable accessibilityRole="button" onPress={onResend} disabled={resending}>
             <Text className="text-brand-600 font-semibold">
-              {resending ? 'Sending…' : 'Resend'}
+              {resending ? t('auth.verifyOtp.sending') : t('auth.verifyOtp.resend')}
             </Text>
           </Pressable>
         </View>

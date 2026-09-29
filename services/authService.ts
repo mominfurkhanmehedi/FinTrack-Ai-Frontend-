@@ -1,4 +1,5 @@
 ﻿import { AuthResult, User } from '../types';
+import { resetSessionCache } from './session';
 import { supabase } from './supabase';
 
 /**
@@ -6,6 +7,16 @@ import { supabase } from './supabase';
  * Same AuthResult contract as the old mock version, so nothing that calls
  * authService (login/signup screens, the store) needs to change.
  */
+
+/**
+ * A successful sign-in starts a brand-new session, so any "this user's cached
+ * token is broken and we already tried recovering it" note from the previous
+ * session must be forgotten — otherwise the account could never recover again
+ * until a full app restart.
+ */
+function onNewSession(): void {
+  resetSessionCache({ forgetRecoveryGuard: true });
+}
 
 function toUser(supaUser: {
   id: string;
@@ -37,6 +48,7 @@ export const authService = {
     if (error || !data.user) {
       return { ok: false, error: error?.message ?? 'Invalid email or password.' };
     }
+    onNewSession();
     return { ok: true, user: toUser(data.user) };
   },
 
@@ -69,6 +81,7 @@ export const authService = {
     if (error || !data.user) {
       return { ok: false, error: error?.message ?? 'Invalid or expired code.' };
     }
+    onNewSession();
     return { ok: true, user: toUser(data.user) };
   },
 
@@ -91,13 +104,18 @@ export const authService = {
 
   async signOut(): Promise<void> {
     await supabase.auth.signOut();
+    resetSessionCache({ forgetRecoveryGuard: true });
   },
 
   /**
-   * Re-hydrate the current session on app start.
-   * Uses `auth.getUser()` — not `getSession()` — so the returned access token
-   * has been validated against Supabase (and refreshed if expired) before it is
-   * used for any subsequent request. This avoids 401s from a stale stored token.
+   * Resolves the current session's user via `auth.getUser()` (a validating,
+   * network-backed call).
+   *
+   * Deliberately NOT used on app startup: it costs a `/auth/v1/user` round
+   * trip, and calling it alongside `onAuthStateChange` multiplied the auth
+   * traffic on every launch. Startup uses `services/session.ts` instead, which
+   * serves the session locally and only refreshes the token when it is close
+   * to expiry. Keep this for explicit, user-initiated flows.
    */
   async getCurrentUser(): Promise<User | null> {
     const { data, error } = await supabase.auth.getUser();

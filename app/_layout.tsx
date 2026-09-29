@@ -5,9 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { useTheme } from '../hooks';
-import { authService, mapSupabaseUser } from '../services/authService';
+import { mapSupabaseUser } from '../services/authService';
+import { getCachedProfilePicture } from '../services/profilePicture';
+import { describeSession, ensureUsableSession } from '../services/session';
 import { supabase } from '../services/supabase';
-import { useAppStore } from '../store';
+import { useAppStore, resetHydrationState } from '../store';
 import { User } from '../types';
 
 /**
@@ -32,61 +34,140 @@ export default function RootLayout() {
   useEffect(() => {
     let isMounted = true;
 
-    // Applies the signed-in user and loads their transactions (only after the
-    // session/token has been validated so the fetch carries a valid JWT).
+    // Idempotency key for this effect instance. Every auth event re-announces
+    // the same account (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, plus a
+    // remount under Fast Refresh), and the previous implementation re-ran the
+    // whole apply + hydrate chain for each one. Tracking the id that was last
+    // applied turns every repeat event into a no-op.
+    let lastAppliedUserId: string | null = null;
+
+    // Applies the signed-in user and loads their transactions. The fetch goes
+    // through the store, which waits for a valid session/access token before
+    // issuing the REST request.
     const applyUser = async (nextUser: User | null) => {
       if (nextUser) {
-        console.log('[auth] Authenticated user:', nextUser.id);
+        if (nextUser.id === lastAppliedUserId) {
+          if (__DEV__) {
+            console.log('[auth] Auth event ignored — user already applied:', nextUser.id);
+          }
+          return;
+        }
+        lastAppliedUserId = nextUser.id;
+        if (__DEV__) console.log('[auth] Authenticated user:', nextUser.id);
+        // Restore the previously persisted profile picture for this account so a
+        // full sign-out/sign-in keeps the same avatar on the same device.
+        const cachedPicture = await getCachedProfilePicture(nextUser.id);
+        if (!isMounted) return;
+        if (cachedPicture) {
+          nextUser = { ...nextUser, profilePicture: cachedPicture };
+        }
         setUser(nextUser);
+        // The store de-duplicates, so overlapping triggers cost nothing extra.
         await hydrateFromSupabase(nextUser.id);
       } else {
-        console.log('[auth] No authenticated user.');
+        if (__DEV__) console.log('[auth] No authenticated user.');
+        lastAppliedUserId = null;
+        resetHydrationState();
         setUser(null);
         clearAllData();
       }
     };
 
-    // 1. Validate any persisted session on cold start. `auth.getUser()` checks
-    //    the token against Supabase and refreshes it if expired — a plain
-    //    `getSession()` only returns the stored JWT, which can be stale and
-    //    cause 401s on the first transactions request.
-    authService
-      .getCurrentUser()
-      .then((sessionUser) => {
-        if (isMounted) return applyUser(sessionUser);
+    // 1. Cold start. `ensureUsableSession()` serves the session from local
+    //    storage with NO network request, and only spends one `refreshSession()`
+    //    when the persisted token is expired or was issued in the future (the
+    //    "JWT issued at future" case). The old code called `auth.getUser()` — a
+    //    real GET /auth/v1/user — which raced the `onAuthStateChange`
+    //    subscription below and doubled the auth calls on every launch.
+    //
+    //    The id and email below come from the session itself, so an unconfirmed
+    //    session (right after signup) is never treated as signed in.
+    ensureUsableSession()
+      .then((session) => {
+        if (!isMounted) return undefined;
+        if (!session) {
+          if (__DEV__) console.log('[auth] No usable session at startup.');
+          setUser(null);
+          clearAllData();
+          return undefined;
+        }
+        if (__DEV__) {
+          console.log(`[auth] Session exists at startup (${describeSession(session)}).`);
+        }
+        const sessionUser = session.user;
+        if (!sessionUser) {
+          console.error('[auth] Session exists but carries no user — treating as signed out.');
+          setUser(null);
+          clearAllData();
+          return undefined;
+        }
+        if (__DEV__) console.log('[auth] Authenticated user exists:', sessionUser.id);
+        // Confirmed-email guard: an unconfirmed session (right after signup)
+        // must not be treated as signed in.
+        if (!sessionUser.email_confirmed_at) {
+          if (__DEV__) console.log('[auth] Session user is unconfirmed — not applying.');
+          return undefined;
+        }
+        return applyUser(mapSupabaseUser(sessionUser));
       })
       .catch((err) => {
         console.error('[auth] Session check failed:', err);
-        if (isMounted) applyUser(null);
+        if (isMounted) void applyUser(null);
       })
       .finally(() => {
         if (isMounted) setIsCheckingSession(false);
       });
 
-    // 2. Keep listening for auth changes (sign in, sign out, token refresh)
-    //    that happen anywhere in the app after startup. `hydrateFromSupabase`
-    //    de-duplicates, so overlap with the boot check causes no extra fetches.
+    // 2. A single subscription for auth changes (sign in, sign out, token
+    //    refresh) that happen anywhere in the app after startup. It is
+    //    unsubscribed on unmount below.
+    //
+    //    The callback MUST NOT `await` other Supabase calls — it runs inside
+    //    the auth client's own dispatch, and awaiting there can deadlock the
+    //    internal lock. Work is fired with `void` and guarded by `isMounted`.
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event: string, session: any) => {
+      (event: string, session: any) => {
         const sessionUser = session?.user;
         // Guard: signing up fires a SIGNED_IN event with an *unconfirmed*
         // session. Ignore it so routing keeps the user on the OTP screen
         // instead of racing to the tabs.
         const confirmed = Boolean(sessionUser && sessionUser.email_confirmed_at);
-        console.log(`[auth] event=${event} signedIn=${confirmed}`);
-        if (confirmed && isMounted) {
-          await applyUser(mapSupabaseUser(sessionUser));
-        } else if (event === 'SIGNED_OUT' && isMounted) {
+        if (__DEV__) console.log(`[auth] event=${event} signedIn=${confirmed}`);
+
+        if (!isMounted) return;
+
+        if (event === 'SIGNED_OUT') {
           console.log('[auth] Signed out — clearing transactions and goals.');
+          lastAppliedUserId = null;
+          // Raised both by a real sign-out and by session recovery purging a
+          // token the server rejected, so the next sign-in must re-hydrate.
+          resetHydrationState();
           setUser(null);
           clearAllData();
+          setIsCheckingSession(false);
+          return;
         }
+
+        if (event === 'INITIAL_SESSION') {
+          if (__DEV__) console.log('[auth] Session initialized.');
+          if (!sessionUser) setIsCheckingSession(false);
+        }
+
+        if (!sessionUser || !confirmed) return;
+        if (sessionUser.id === lastAppliedUserId) return;
+
+        void applyUser(mapSupabaseUser(sessionUser)).then(() => {
+          if (isMounted) setIsCheckingSession(false);
+        });
       },
     );
+
+    if (__DEV__) console.log('[auth] Auth listener registered (1x).');
 
     return () => {
       isMounted = false;
       authListener.subscription.unsubscribe();
+      if (__DEV__) console.log('[auth] Auth listener unsubscribed.');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

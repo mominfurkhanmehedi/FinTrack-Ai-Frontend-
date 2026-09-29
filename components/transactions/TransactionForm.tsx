@@ -4,6 +4,8 @@ import { ComponentProps, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button, Input } from '../ui';
+import { useMoney } from '../../hooks';
+import { useI18n } from '../../i18n';
 import { TransactionType } from '../../types';
 import { isoToday } from '../../utils';
 
@@ -31,7 +33,20 @@ const iconBadgeShadow = Platform.select({
   },
 });
 
+type CategoryKey = 'salary' | 'freelance' | 'housing' | 'food' | 'transport' | 'utilities' | 'other';
+
+export const CATEGORY_KEYS: Record<string, CategoryKey> = {
+  Salary: 'salary',
+  Freelance: 'freelance',
+  Housing: 'housing',
+  Food: 'food',
+  Transport: 'transport',
+  Utilities: 'utilities',
+  Other: 'other',
+};
+
 interface Category {
+  key: CategoryKey;
   label: string;
   description: string;
   icon: IoniconName;
@@ -42,6 +57,7 @@ interface Category {
 
 const CATEGORIES: Category[] = [
   {
+    key: 'salary',
     label: 'Salary',
     description: 'Monthly or hourly pay',
     icon: 'briefcase',
@@ -50,6 +66,7 @@ const CATEGORIES: Category[] = [
     border: '#6ee7b7',
   },
   {
+    key: 'freelance',
     label: 'Freelance',
     description: 'Contract & side work',
     icon: 'laptop',
@@ -58,6 +75,7 @@ const CATEGORIES: Category[] = [
     border: '#c4b5fd',
   },
   {
+    key: 'housing',
     label: 'Housing',
     description: 'Rent, mortgage & bills',
     icon: 'home',
@@ -66,6 +84,7 @@ const CATEGORIES: Category[] = [
     border: '#fcd34d',
   },
   {
+    key: 'food',
     label: 'Food',
     description: 'Groceries & dining',
     icon: 'fast-food',
@@ -74,6 +93,7 @@ const CATEGORIES: Category[] = [
     border: '#fca5a5',
   },
   {
+    key: 'transport',
     label: 'Transport',
     description: 'Fuel, transit & rides',
     icon: 'car',
@@ -82,6 +102,7 @@ const CATEGORIES: Category[] = [
     border: '#93c5fd',
   },
   {
+    key: 'utilities',
     label: 'Utilities',
     description: 'Power, water & internet',
     icon: 'flash',
@@ -90,6 +111,7 @@ const CATEGORIES: Category[] = [
     border: '#fdba74',
   },
   {
+    key: 'other',
     label: 'Other',
     description: 'Everything else',
     icon: 'ellipsis-horizontal-circle',
@@ -128,6 +150,9 @@ export function TransactionForm({
   onSubmit,
   submitting = false,
 }: TransactionFormProps) {
+  const { symbol } = useMoney();
+  const { t } = useI18n();
+
   // If editing an existing transaction, skip straight to the form
   const [step, setStep] = useState<1 | 2>(initial ? 2 : 1);
 
@@ -138,6 +163,13 @@ export function TransactionForm({
   const [date, setDate] = useState(initial?.date ?? isoToday());
 
   const activeCat = CATEGORIES.find((c) => c.label === category);
+  const activeCategoryLabel =
+    category === 'Savings'
+      ? t('categories.savings')
+      : t(`categories.${activeCat?.key ?? 'other'}.label`);
+  const activeCategoryDescription = activeCat
+    ? t(`categories.${activeCat.key}.description`)
+    : t('categories.selectedCategory');
   const valid = title.trim().length > 0 && parseFloat(amount) > 0;
   const submit = () => onSubmit({ title, amount, type, category, date });
 
@@ -151,21 +183,23 @@ export function TransactionForm({
         <View className="px-5 pt-6 pb-4 bg-gray-50 dark:bg-gray-950 border-b border-gray-100 dark:border-gray-800">
           <View className="flex-row items-center justify-between mb-1">
             <Text className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-              Step 1 of 2
+              {t('transactions.form.step1of2')}
             </Text>
             <Pressable
               accessibilityRole="button"
               onPress={() => router.back()}
               hitSlop={12}
             >
-              <Text className="text-brand-600 font-semibold text-sm">Cancel</Text>
+              <Text className="text-brand-600 font-semibold text-sm">
+                {t('transactions.form.cancel')}
+              </Text>
             </Pressable>
           </View>
           <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
-            Choose a Category
+            {t('transactions.form.chooseCategory')}
           </Text>
           <Text className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            What type of transaction is this?
+            {t('transactions.form.whatTypeOfTransaction')}
           </Text>
         </View>
 
@@ -226,7 +260,7 @@ export function TransactionForm({
                     marginBottom: 3,
                   }}
                 >
-                  {cat.label}
+                  {t(`categories.${cat.key}.label`)}
                 </Text>
                 <Text
                   style={{
@@ -235,7 +269,7 @@ export function TransactionForm({
                     lineHeight: 16,
                   }}
                 >
-                  {cat.description}
+                  {t(`categories.${cat.key}.description`)}
                 </Text>
 
                 {/* Arrow indicator */}
@@ -281,7 +315,7 @@ export function TransactionForm({
                 className="font-semibold text-sm"
                 style={{ color: activeCat?.color ?? '#4f46e5' }}
               >
-                Category
+                {t('transactions.form.category')}
               </Text>
             </Pressable>
           ) : (
@@ -297,7 +331,7 @@ export function TransactionForm({
               className="font-semibold text-sm"
               style={{ color: activeCat?.color ?? '#4f46e5' }}
             >
-              Close
+              {t('transactions.form.close')}
             </Text>
           </Pressable>
         </View>
@@ -327,10 +361,10 @@ export function TransactionForm({
 
           <View className="flex-1">
             <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {activeCat?.label ?? category}
+              {activeCategoryLabel}
             </Text>
             <Text className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              {activeCat?.description ?? 'Selected category'}
+              {activeCategoryDescription}
             </Text>
           </View>
 
@@ -338,7 +372,7 @@ export function TransactionForm({
           {!initial && (
             <View className="items-end">
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Step 2 of 2
+                {t('transactions.form.step2of2')}
               </Text>
             </View>
           )}
@@ -354,13 +388,13 @@ export function TransactionForm({
       >
         {/* Type toggle */}
         <View className="flex-row gap-3 mb-4">
-          {(['expense', 'income'] as TransactionType[]).map((t) => (
+          {(['expense', 'income'] as TransactionType[]).map((transactionType) => (
             <Pressable
-              key={t}
-              onPress={() => setType(t)}
+              key={transactionType}
+              onPress={() => setType(transactionType)}
               className={`flex-1 items-center rounded-xl border py-3.5 ${
-                type === t
-                  ? t === 'expense'
+                type === transactionType
+                  ? transactionType === 'expense'
                     ? 'border-red-400 bg-red-50'
                     : 'border-green-400 bg-green-50'
                   : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
@@ -368,11 +402,11 @@ export function TransactionForm({
               accessibilityRole="button"
             >
               <Ionicons
-                name={t === 'expense' ? 'arrow-up-circle' : 'arrow-down-circle'}
+                name={transactionType === 'expense' ? 'arrow-up-circle' : 'arrow-down-circle'}
                 size={20}
                 color={
-                  type === t
-                    ? t === 'expense'
+                  type === transactionType
+                    ? transactionType === 'expense'
                       ? '#ef4444'
                       : '#10b981'
                     : '#9ca3af'
@@ -381,42 +415,44 @@ export function TransactionForm({
               />
               <Text
                 className={`text-sm font-bold ${
-                  type === t
-                    ? t === 'expense'
+                  type === transactionType
+                    ? transactionType === 'expense'
                       ? 'text-red-600'
                       : 'text-green-600'
                     : 'text-gray-400 dark:text-gray-500'
                 }`}
               >
-                {t === 'expense' ? 'Expense' : 'Income'}
+                {transactionType === 'expense'
+                  ? t('transactions.form.expense')
+                  : t('transactions.form.income')}
               </Text>
             </Pressable>
           ))}
         </View>
 
         <Input
-          label="Amount"
+          label={t('transactions.form.amount')}
           value={amount}
           onChangeText={setAmount}
           keyboardType="decimal-pad"
           placeholder="0.00"
           leftIcon={
-            <Text className="text-gray-400 font-semibold text-base">$</Text>
+            <Text className="text-gray-400 font-semibold text-base">{symbol}</Text>
           }
         />
 
         <Input
-          label="Title"
+          label={t('transactions.form.title')}
           value={title}
           onChangeText={setTitle}
-          placeholder="e.g. Groceries"
+          placeholder={t('transactions.form.titlePlaceholder')}
         />
 
         <Input
-          label="Date (yyyy-mm-dd)"
+          label={t('transactions.form.date')}
           value={date}
           onChangeText={setDate}
-          placeholder="2026-08-17"
+          placeholder={t('transactions.form.datePlaceholder')}
         />
 
         <Button

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button, Input } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { authService } from '../../services';
 import { useAppStore } from '../../store';
 import { isValidEmail } from '../../utils';
@@ -22,13 +23,14 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; confirm?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   const onSignup = async () => {
     const nextErrors: typeof errors = {};
-    if (!name.trim()) nextErrors.name = 'Full name is required.';
-    if (!isValidEmail(email)) nextErrors.email = 'Enter a valid email address.';
-    if (password.length < 6) nextErrors.password = 'Password must be at least 6 characters.';
-    if (password !== confirm) nextErrors.confirm = 'Passwords do not match.';
+    if (!name.trim()) nextErrors.name = t('auth.signup.errName');
+    if (!isValidEmail(email)) nextErrors.email = t('auth.signup.errEmail');
+    if (password.length < 6) nextErrors.password = t('auth.signup.errPassword');
+    if (password !== confirm) nextErrors.confirm = t('auth.signup.errMismatch');
     setErrors(nextErrors);
     setFormError(null);
 
@@ -48,7 +50,7 @@ export default function Signup() {
       finishOnboarding();
       router.replace('/dashboard');
     } else {
-      setFormError(result.error ?? 'Unable to create account.');
+      setFormError(result.error ?? t('auth.signup.errInvalid'));
     }
   };
 
@@ -58,21 +60,23 @@ export default function Signup() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="flex-grow justify-center px-8 py-10">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Create your account</Text>
-        <Text className="text-base text-gray-500 mb-8">Start tracking your finances in minutes.</Text>
+        <Text className="text-3xl font-bold text-gray-900 mb-2">
+          {t('auth.signup.createYourAccount')}
+        </Text>
+        <Text className="text-base text-gray-500 mb-8">{t('auth.signup.subtitle')}</Text>
 
         <Input
-          label="Full name"
+          label={t('auth.signup.fullName')}
           value={name}
           onChangeText={(t) => {
             setName(t);
             setErrors((e) => ({ ...e, name: undefined }));
           }}
-          placeholder="Jane Doe"
+          placeholder={t('auth.signup.placeholderName')}
           error={errors.name}
         />
         <Input
-          label="Email"
+          label={t('auth.signup.email')}
           value={email}
           onChangeText={(t) => {
             setEmail(t);
@@ -85,35 +89,35 @@ export default function Signup() {
           error={errors.email}
         />
         <Input
-          label="Password"
+          label={t('auth.signup.password')}
           value={password}
           onChangeText={(t) => {
             setPassword(t);
             setErrors((e) => ({ ...e, password: undefined, confirm: undefined }));
           }}
           secure
-          placeholder="At least 6 characters"
+          placeholder={t('auth.signup.placeholderPassword')}
           error={errors.password}
         />
         <Input
-          label="Confirm password"
+          label={t('auth.signup.confirmPassword')}
           value={confirm}
           onChangeText={(t) => {
             setConfirm(t);
             setErrors((e) => ({ ...e, confirm: undefined }));
           }}
           secure
-          placeholder="Repeat your password"
+          placeholder={t('auth.signup.placeholderConfirm')}
           error={errors.confirm}
         />
 
         {formError ? <Text className="text-sm text-red-500 mb-2">{formError}</Text> : null}
 
-        <Button title="Create account" onPress={onSignup} loading={loading} fullWidth />
+        <Button title={t('auth.signup.createAccount')} onPress={onSignup} loading={loading} fullWidth />
         <View className="flex-row justify-center mt-6">
-          <Text className="text-gray-500">Already have an account? </Text>
+          <Text className="text-gray-500">{t('auth.signup.alreadyHaveAccount')}</Text>
           <Pressable accessibilityRole="button" onPress={() => router.push('/login')}>
-            <Text className="text-brand-600 font-semibold">Log in</Text>
+            <Text className="text-brand-600 font-semibold">{t('auth.login.logIn')}</Text>
           </Pressable>
         </View>
       </ScrollView>

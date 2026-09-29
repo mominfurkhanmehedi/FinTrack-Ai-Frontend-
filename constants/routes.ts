@@ -23,6 +23,9 @@ export const ROUTES = {
     ADD_GOAL: '/add-goal',
     ADD_SAVING: '/add-saving',
     TRANSACTION_DETAIL: '/transaction-detail',
+    SAFE_TO_SPEND: '/safe-to-spend',
+    WHAT_IF: '/what-if',
+    ASK_FINTRACK: '/ask-fintrack',
   },
 
   SETTINGS_SCREENS: {

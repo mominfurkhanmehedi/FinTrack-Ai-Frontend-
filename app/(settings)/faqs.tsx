@@ -1,64 +1,107 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Text, View } from 'react-native';
 
 import { SettingsScreen } from '../../components/settings';
-import { Card } from '../../components/ui';
+import { Accordion, AccordionItem } from '../../components/support';
+import { Button, Card } from '../../components/ui';
+import { ROUTES } from '../../constants/routes';
+import { useI18n } from '../../i18n';
 
-const FAQS = [
+const FAQS: AccordionItem[] = [
   {
-    q: 'How does FinTrack AI track my spending?',
-    a: 'Transactions you add are stored locally and used to compute totals, categories, and AI-powered insights. Nothing is shared without your consent.',
+    id: 'what-is-fintrack',
+    question: 'What is FinTrack AI?',
+    answer:
+      'FinTrack AI is a personal financial tracking and management tool. It helps you record transactions, review spending, plan budgets, follow savings goals, and explore reports. It does not act as a bank, investment platform, or professional adviser.',
   },
   {
-    q: 'Is my financial data safe?',
-    a: 'Yes. Your data stays on your device (and optionally syncs to your backend). We never sell your personal information.',
+    id: 'first-transaction',
+    question: 'How do I add my first transaction?',
+    answer:
+      'Open the add-transaction action, choose Income or Expense, enter the amount and date, select a category, and save. FinTrack AI will immediately include it in your balance, category totals, and relevant reports.',
   },
   {
-    q: 'How are AI insights generated?',
-    a: 'Insights are computed from your transaction history — spending predictions, budget suggestions, and savings opportunities.',
+    id: 'data-storage',
+    question: 'Where is my data stored?',
+    answer:
+      'App data is cached on your device for fast access. When you are signed in, transactions and goals are synchronized with your FinTrack AI account so they can be restored on your devices. Your selected profile picture and some preferences are also kept in local app storage.',
   },
   {
-    q: 'Can I export my data?',
-    a: 'Yes. Go to Settings → Data → Export Data to download your transactions as a CSV file.',
+    id: 'bank-connection',
+    question: 'Does FinTrack AI connect to my bank automatically?',
+    answer:
+      'No. In the current version, you add transactions manually. FinTrack AI is not a bank, payment service, or account aggregator, so it cannot verify a transaction with your financial institution.',
+  },
+  {
+    id: 'edit-delete',
+    question: 'Can I edit or delete a transaction?',
+    answer:
+      'Yes. Open the relevant transaction from the Transactions screen, choose Edit to change its details, or choose Delete to remove it. If you are signed in, the change is synchronized with your account.',
+  },
+  {
+    id: 'ai-insights',
+    question: 'How are insights generated?',
+    answer:
+      'Balances, categories, trends, safe-to-spend estimates, and many reports are calculated from the data you provide. When an external AI provider is configured for an AI feature, the app sends your question and only the relevant transaction or goal context needed for that response.',
+  },
+  {
+    id: 'ai-accuracy',
+    question: 'Can AI-generated insights be wrong?',
+    answer:
+      'Yes. AI output and projections can be incomplete, outdated, or incorrect because they depend on the information you entered and the model used. Review important calculations against your own records and never rely on generated content as professional advice.',
+  },
+  {
+    id: 'currency',
+    question: 'Does the app convert currencies?',
+    answer:
+      'The currency setting changes how amounts are displayed. FinTrack AI does not currently retrieve exchange rates or convert the underlying value of a transaction, so use amounts in the same currency unless you have already converted them yourself.',
+  },
+  {
+    id: 'export-data',
+    question: 'How do I export my data?',
+    answer:
+      'Go to Settings, choose Export Data, and select Export CSV. The current export includes the title, amount, type, category, and date of your transactions. You can share or save the file using your device.',
+  },
+  {
+    id: 'delete-data',
+    question: 'How can I remove my information?',
+    answer:
+      'You can clear individual records, clear app data, or use Delete Account from Settings. Local information is also removed when you sign out where applicable or uninstall the app. Contact support if you need help with an account data request.',
   },
 ];
 
-/**
- * Screen: FAQs
- * Sample questions and answers with expandable rows.
- */
 export default function Faqs() {
-  const [open, setOpen] = useState<number | null>(0);
+  const { t } = useI18n();
 
   return (
-    <SettingsScreen title="FAQs" subtitle="Frequently asked questions">
+    <SettingsScreen title={t('faqs.title')} subtitle={t('faqs.subtitle')}>
+      <Accordion items={FAQS} initialExpandedId={FAQS[0].id} />
+
+      <View className="h-4" />
       <Card>
-        {FAQS.map((faq, i) => {
-          const expanded = open === i;
-          return (
-            <Pressable
-              key={i}
-              accessibilityRole="button"
-              onPress={() => setOpen(expanded ? null : i)}
-              className={`py-3 ${i < FAQS.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
-            >
-              <View className="flex-row items-center justify-between">
-                <Text className="text-base font-medium text-gray-900 dark:text-gray-100 flex-1 pr-2">
-                  {faq.q}
-                </Text>
-                <Ionicons
-                  name={expanded ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color="#9ca3af"
-                />
-              </View>
-              {expanded ? (
-                <Text className="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-5">{faq.a}</Text>
-              ) : null}
-            </Pressable>
-          );
-        })}
+        <View className="flex-row items-start gap-3">
+          <View className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-gray-800 items-center justify-center">
+            <Ionicons name="help-circle-outline" size={20} color="#4f46e5" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              Still need an answer?
+            </Text>
+            <Text className="text-sm text-gray-500 dark:text-gray-400 leading-5 mt-1">
+              Tell the support team what you were trying to do and what happened instead.
+            </Text>
+          </View>
+        </View>
+        <View className="mt-4">
+          <Button
+            title="Contact Us"
+            variant="secondary"
+            fullWidth
+            leftIcon={<Ionicons name="mail-outline" size={18} color="#4338ca" />}
+            onPress={() => router.push(ROUTES.SETTINGS_SCREENS.CONTACT_US)}
+          />
+        </View>
       </Card>
     </SettingsScreen>
   );

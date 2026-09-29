@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { Button, Input } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { authService } from '../../services';
 
 /**
@@ -12,16 +13,17 @@ import { authService } from '../../services';
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const { t } = useI18n();
 
   const onSubmit = async () => {
     setLoading(true);
     const result = await authService.sendResetLink(email);
     setLoading(false);
     if (result.ok) {
-      Alert.alert('Check your email', 'If that address is registered, a reset link is on its way.');
+      Alert.alert(t('auth.forgot.checkEmailTitle'), t('auth.forgot.checkEmailBody'));
       router.back();
     } else {
-      Alert.alert('Error', result.error ?? 'Something went wrong.');
+      Alert.alert(t('auth.forgot.errorTitle'), result.error ?? t('auth.forgot.somethingWentWrong'));
     }
   };
 
@@ -31,13 +33,11 @@ export default function ForgotPassword() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="flex-grow justify-center px-8 py-10">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Reset password</Text>
-        <Text className="text-base text-gray-500 mb-8">
-          Enter your account email and we'll send you a reset link.
-        </Text>
+        <Text className="text-3xl font-bold text-gray-900 mb-2">{t('auth.forgot.resetPassword')}</Text>
+        <Text className="text-base text-gray-500 mb-8">{t('auth.forgot.subtitle')}</Text>
 
         <Input
-          label="Email"
+          label={t('auth.forgot.email')}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -45,9 +45,9 @@ export default function ForgotPassword() {
           placeholder="you@example.com"
         />
 
-        <Button title="Send reset link" onPress={onSubmit} loading={loading} fullWidth />
+        <Button title={t('auth.forgot.sendResetLink')} onPress={onSubmit} loading={loading} fullWidth />
         <View className="h-4" />
-        <Button title="Back to login" variant="ghost" onPress={() => router.push('/login')} fullWidth />
+        <Button title={t('common.backToLogin')} variant="ghost" onPress={() => router.push('/login')} fullWidth />
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 
 /**
@@ -12,6 +13,7 @@ import { useAppStore } from '../../store';
  */
 export default function Landing() {
   const hasOnboarded = useAppStore((s) => s.hasOnboarded);
+  const { t } = useI18n();
 
   const go = (route: 'login' | 'signup') =>
     router.push(hasOnboarded ? `/${route}` : '/onboarding');
@@ -25,20 +27,20 @@ export default function Landing() {
             <Text className="text-3xl font-bold text-white">FinTrack AI</Text>
           </View>
           <Text className="text-xl text-brand-100 leading-7">
-            Take control of your money with AI-powered insights, budgets, and goals.
+            {t('auth.landing.tagline')}
           </Text>
         </View>
 
         <View className="pt-8 pb-4">
-          <Button title="Log in" variant="secondary" fullWidth onPress={() => go('login')} />
+          <Button title={t('auth.landing.login')} variant="secondary" fullWidth onPress={() => go('login')} />
           <View className="h-3" />
-          <Button title="Create account" fullWidth onPress={() => go('signup')} />
+          <Button title={t('auth.landing.createAccount')} fullWidth onPress={() => go('signup')} />
           <Pressable
             className="items-center py-3 mt-2"
             accessibilityRole="button"
             onPress={() => router.push(hasOnboarded ? '/forgot-password' : '/onboarding')}
           >
-            <Text className="text-brand-100 underline">Forgot password?</Text>
+            <Text className="text-brand-100 underline">{t('auth.landing.forgotPassword')}</Text>
           </Pressable>
         </View>
       </ScrollView>

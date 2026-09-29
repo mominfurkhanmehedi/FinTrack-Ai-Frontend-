@@ -4,6 +4,7 @@ import { BarChart, LineChart, PieChart } from 'react-native-chart-kit';
 import Svg, { Circle, G, Line, Path, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import { COLORS } from '../../constants/theme';
+import { useMoney } from '../../hooks';
 
 const IS_WEB = Platform.OS === 'web';
 
@@ -70,6 +71,7 @@ export function Chart({
   height = 220,
 }: ChartProps) {
   const [width, onLayout] = useChartWidth();
+  const { symbol } = useMoney();
   const chartWidth = Math.max(width - 16, 200);
 
   // De-fang the data before it reaches any chart so amounts that are null,
@@ -132,7 +134,7 @@ export function Chart({
             chartConfig={config}
             fromZero
             showValuesOnTopOfBars
-            yAxisLabel="$"
+            yAxisLabel={symbol}
             yAxisSuffix=""
             style={styles.chart}
           />

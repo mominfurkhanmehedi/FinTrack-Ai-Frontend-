@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 
+import { useI18n } from '../../i18n';
 import { PickerList, SettingsScreen } from '../../components/settings';
 import { useAppStore } from '../../store';
 import { CURRENCIES } from '../../types';
@@ -12,9 +13,10 @@ import { CURRENCIES } from '../../types';
 export default function CurrencyPicker() {
   const currency = useAppStore((s) => s.currency);
   const setCurrency = useAppStore((s) => s.setCurrency);
+  const { t } = useI18n();
 
   return (
-    <SettingsScreen title="Currency" subtitle="Display currency">
+    <SettingsScreen title={t('pickers.currencyTitle')} subtitle={t('pickers.currencySubtitle')}>
       <PickerList
         options={CURRENCIES.map((c) => ({ key: c.code, label: `${c.symbol} ${c.label}` }))}
         selected={currency}

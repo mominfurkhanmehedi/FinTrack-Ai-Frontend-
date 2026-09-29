@@ -6,16 +6,17 @@ import { Pressable, Text, View } from 'react-native';
 import { TransactionListItem } from '../../components/transactions';
 import { Card, EmptyState, Input, ResponsiveContainer, ScreenHeader } from '../../components/ui';
 import { ROUTES } from '../../constants/routes';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 import { TransactionType } from '../../types';
 import { useMoney } from '../../hooks';
 import { netBalance } from '../../utils';
 
-const FILTERS: { key: 'all' | TransactionType; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'income', label: 'Income' },
-  { key: 'expense', label: 'Expense' },
-];
+const FILTERS = [
+  { key: 'all', label: 'transactions.all' },
+  { key: 'income', label: 'transactions.income' },
+  { key: 'expense', label: 'transactions.expense' },
+] as const;
 
 /**
  * Screen: Transactions
@@ -28,20 +29,21 @@ export default function Transactions() {
   const [filter, setFilter] = useState<'all' | TransactionType>('all');
 
   const { format } = useMoney();
-  const filtered = transactions.filter((t) => {
+  const { t } = useI18n();
+  const filtered = transactions.filter((transaction) => {
     const matchesQuery =
       !query.trim() ||
-      t.title.toLowerCase().includes(query.toLowerCase()) ||
-      t.category.toLowerCase().includes(query.toLowerCase());
-    const matchesFilter = filter === 'all' || t.type === filter;
+      transaction.title.toLowerCase().includes(query.toLowerCase()) ||
+      transaction.category.toLowerCase().includes(query.toLowerCase());
+    const matchesFilter = filter === 'all' || transaction.type === filter;
     return matchesQuery && matchesFilter;
   });
 
   return (
     <ResponsiveContainer>
       <ScreenHeader
-        title="Transactions"
-        subtitle={`Net: ${format(netBalance(transactions))}`}
+        title={t('transactions.screenTitle')}
+        subtitle={t('transactions.screenSubtitle', { net: format(netBalance(transactions)) })}
         action={
           <Pressable
             className="flex-row items-center gap-1 rounded-xl bg-brand-600 px-4 py-2.5 active:bg-brand-700"
@@ -49,7 +51,7 @@ export default function Transactions() {
             onPress={() => router.push(ROUTES.MODALS.ADD_TRANSACTION)}
           >
             <Ionicons name="add" size={18} color="#ffffff" />
-            <Text className="text-white font-semibold">Add</Text>
+            <Text className="text-white font-semibold">{t('transactions.add')}</Text>
           </Pressable>
         }
       />
@@ -58,7 +60,7 @@ export default function Transactions() {
         <Input
           value={query}
           onChangeText={setQuery}
-          placeholder="Search transactions…"
+          placeholder={t('transactions.searchPlaceholder')}
           leftIcon={<Ionicons name="search" size={18} color="#9ca3af" />}
         />
 
@@ -73,7 +75,7 @@ export default function Transactions() {
               accessibilityRole="button"
             >
               <Text className={filter === f.key ? 'text-brand-700 font-medium' : 'text-gray-600'}>
-                {f.label}
+                {t(f.label)}
               </Text>
             </Pressable>
           ))}
@@ -82,11 +84,15 @@ export default function Transactions() {
         {filtered.length === 0 ? (
           <EmptyState
             icon={transactions.length === 0 ? 'wallet-outline' : 'search'}
-            title={transactions.length === 0 ? 'No transactions yet' : 'No matching transactions'}
+            title={
+              transactions.length === 0
+                ? t('transactions.noTransactionsTitle')
+                : t('transactions.noMatchingTitle')
+            }
             message={
               transactions.length === 0
-                ? 'Tap "Add" to record your first income or expense.'
-                : 'Try a different search term or filter.'
+                ? t('transactions.noTransactionsMessage')
+                : t('transactions.noMatchingMessage')
             }
           />
         ) : (

@@ -6,13 +6,11 @@ import { ThemeMode } from '../types';
 
 /**
  * useTheme
- * Resolves the active theme from the stored preference ('light' | 'dark' |
- * 'system') and applies it so NativeWind's `dark:` variants respond.
+ * Resolves the active theme from the stored preference ('light' | 'dark') and
+ * applies it so NativeWind's `dark:` variants respond.
  *
  * IMPORTANT: The app is LIGHT by default. Only an explicit 'dark' selection
- * applies the dark palette. 'system' is treated as light (system auto-follow
- * is intentionally bypassed so the OS color scheme can't unexpectedly flip
- * the whole UI on load).
+ * applies the dark palette.
  *
  * - Native (iOS/Android): Appearance.setColorScheme() forces the scheme and
  *   drives the color scheme observable NativeWind reads.
@@ -22,14 +20,13 @@ import { ThemeMode } from '../types';
 export function useTheme(): { isDark: boolean; mode: ThemeMode } {
   const mode = useAppStore((s) => s.theme);
 
-  // Dark only when the user explicitly picks 'dark'. 'light' and 'system'
-  // both render the original light theme.
+  // Dark only when the user explicitly picks 'dark'; 'light' renders light.
   const isDark = mode === 'dark';
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      // 'dark' forces the dark scheme; 'light' and 'system' both explicitly
-      // apply the light color scheme so the OS dark setting doesn't bleed in.
+      // 'dark' forces the dark scheme; 'light' applies the light color scheme
+      // so the OS dark setting doesn't bleed in.
       Appearance.setColorScheme(isDark ? 'dark' : 'light');
       return;
     }

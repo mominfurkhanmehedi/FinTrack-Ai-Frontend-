@@ -10,3 +10,4 @@ export { ResponsiveContainer } from './ResponsiveContainer';
 export { EmptyState } from './EmptyState';
 export { Chart } from './Chart';
 export type { ChartProps } from './Chart';
+export { POINTER_EVENTS } from './pointerEventsStyles';

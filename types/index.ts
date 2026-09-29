@@ -24,9 +24,14 @@ export interface User {
   email: string;
   /** Emoji or single-char avatar marker. */
   avatar?: string;
+  /**
+   * Profile picture reference: a `data:` URI on web or a persistent
+   * `file://` path on Android/iOS. Never a temporary blob URL.
+   */
+  profilePicture?: string;
 }
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark';
 
 export interface NotificationPrefs {
   transactionAlerts: boolean;
@@ -43,13 +48,13 @@ export interface AuthResult {
   needsEmailConfirmation?: boolean;
 }
 
-/** Available display languages. */
+/** Available display languages (native-script labels). */
 export const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'hi', label: 'हिन्दी' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'de', label: 'Deutsch' },
+  { code: 'en', label: 'English', isDefault: true },
+  { code: 'hi', label: 'हिन्दी', isDefault: false },
+  { code: 'kn', label: 'ಕನ್ನಡ', isDefault: false },
+  { code: 'mr', label: 'मराठी', isDefault: false },
+  { code: 'te', label: 'తెలుగు', isDefault: false },
 ] as const;
 
 /** Available currencies. */

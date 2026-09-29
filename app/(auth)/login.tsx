@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { Button, Input } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { authService } from '../../services';
 import { useAppStore } from '../../store';
 import { isValidEmail } from '../../utils';
@@ -20,12 +21,13 @@ export default function Login() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   const onLogin = async () => {
     const emailValid = isValidEmail(email);
     const passwordValid = password.length > 0;
-    setEmailError(emailValid ? null : 'Enter a valid email address.');
-    setPasswordError(passwordValid ? null : 'Password is required.');
+    setEmailError(emailValid ? null : t('auth.login.errEmail'));
+    setPasswordError(passwordValid ? null : t('auth.login.errPassword'));
     setFormError(null);
 
     if (!emailValid || !passwordValid) {
@@ -39,7 +41,7 @@ export default function Login() {
       setUser(result.user);
       router.replace('/dashboard');
     } else {
-      setFormError(result.error ?? 'Unable to log in.');
+      setFormError(result.error ?? t('auth.login.errInvalid'));
     }
   };
 
@@ -49,11 +51,11 @@ export default function Login() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerClassName="flex-grow justify-center px-8 py-10">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Welcome back</Text>
-        <Text className="text-base text-gray-500 mb-8">Log in to your FinTrack AI account.</Text>
+        <Text className="text-3xl font-bold text-gray-900 mb-2">{t('auth.login.welcomeBack')}</Text>
+        <Text className="text-base text-gray-500 mb-8">{t('auth.login.subtitle')}</Text>
 
         <Input
-          label="Email"
+          label={t('auth.login.email')}
           value={email}
           onChangeText={(t) => {
             setEmail(t);
@@ -67,7 +69,7 @@ export default function Login() {
           error={emailError ?? undefined}
         />
         <Input
-          label="Password"
+          label={t('auth.login.password')}
           value={password}
           onChangeText={(t) => {
             setPassword(t);
@@ -81,18 +83,18 @@ export default function Login() {
 
         {formError ? <Text className="text-sm text-red-500 mb-2">{formError}</Text> : null}
 
-        <Button title="Log in" onPress={onLogin} loading={loading} fullWidth />
+        <Button title={t('auth.login.logIn')} onPress={onLogin} loading={loading} fullWidth />
         <Pressable
           className="items-center py-3 mt-2"
           accessibilityRole="button"
           onPress={() => router.push('/forgot-password')}
         >
-          <Text className="text-brand-600">Forgot password?</Text>
+          <Text className="text-brand-600">{t('auth.login.forgotPassword')}</Text>
         </Pressable>
         <View className="flex-row justify-center mt-4">
-          <Text className="text-gray-500">New here? </Text>
+          <Text className="text-gray-500">{t('auth.login.newHere')}</Text>
           <Pressable accessibilityRole="button" onPress={() => router.push('/signup')}>
-            <Text className="text-brand-600 font-semibold">Create account</Text>
+            <Text className="text-brand-600 font-semibold">{t('auth.signup.createAccount')}</Text>
           </Pressable>
         </View>
       </ScrollView>

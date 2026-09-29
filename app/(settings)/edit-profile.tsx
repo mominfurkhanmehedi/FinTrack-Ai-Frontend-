@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 
 import { SettingsScreen } from '../../components/settings';
 import { Button, Card, Input } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 import { AVATARS } from '../../types';
 
@@ -14,6 +15,7 @@ import { AVATARS } from '../../types';
 export default function EditProfile() {
   const user = useAppStore((s) => s.user);
   const updateUser = useAppStore((s) => s.updateUser);
+  const { t } = useI18n();
 
   const [name, setName] = useState(user?.name ?? '');
   const [avatar, setAvatar] = useState(user?.avatar ?? AVATARS[0]);
@@ -26,9 +28,11 @@ export default function EditProfile() {
   };
 
   return (
-    <SettingsScreen title="Edit Profile" subtitle="Update your name and avatar">
+    <SettingsScreen title={t('editProfile.title')} subtitle={t('editProfile.subtitle')}>
       <Card>
-        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Avatar</Text>
+        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          {t('editProfile.avatar')}
+        </Text>
         <View className="flex-row flex-wrap gap-3 mb-6">
           {AVATARS.map((a) => {
             const selected = a === avatar;
@@ -43,7 +47,7 @@ export default function EditProfile() {
                   className="text-2xl"
                   onPress={() => setAvatar(a)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Select avatar ${a}`}
+                  accessibilityLabel={t('editProfile.selectAvatar', { avatar: a })}
                 >
                   {a}
                 </Text>
@@ -52,12 +56,12 @@ export default function EditProfile() {
           })}
         </View>
 
-        <Input label="Full name" value={name} onChangeText={setName} placeholder="Jane Doe" />
-        <Input label="Email" value={user?.email ?? ''} editable={false} />
+        <Input label={t('editProfile.fullName')} value={name} onChangeText={setName} placeholder={t('editProfile.placeholderName')} />
+        <Input label={t('editProfile.email')} value={user?.email ?? ''} editable={false} />
       </Card>
 
       <View className="h-4" />
-      <Button title="Save changes" onPress={save} disabled={!valid} fullWidth />
+      <Button title={t('editProfile.saveChanges')} onPress={save} disabled={!valid} fullWidth />
     </SettingsScreen>
   );
 }

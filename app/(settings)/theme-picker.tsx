@@ -1,28 +1,29 @@
 import { router } from 'expo-router';
 
+import { useI18n } from '../../i18n';
 import { PickerList, SettingsScreen } from '../../components/settings';
 import { useAppStore } from '../../store';
 import { ThemeMode } from '../../types';
 
-const OPTIONS: { key: ThemeMode; label: string; description: string }[] = [
-  { key: 'light', label: 'Light', description: 'Always use the light theme' },
-  { key: 'dark', label: 'Dark', description: 'Always use the dark theme' },
-  { key: 'system', label: 'System', description: 'Match your device setting' },
-];
-
 /**
  * Screen: ThemePicker
- * Choose light / dark / system theme. Applying the selection via useTheme
- * drives NativeWind `dark:` variants app-wide.
+ * Choose a light / dark theme (Light is the default; no "system" option).
+ * Applying the selection via useTheme drives NativeWind `dark:` variants.
  */
 export default function ThemePicker() {
   const theme = useAppStore((s) => s.theme);
   const setTheme = useAppStore((s) => s.setTheme);
+  const { t } = useI18n();
+
+  const options: { key: ThemeMode; label: string; description: string }[] = [
+    { key: 'light', label: t('pickers.lightDefault'), description: t('pickers.lightDesc') },
+    { key: 'dark', label: t('pickers.dark'), description: t('pickers.darkDesc') },
+  ];
 
   return (
-    <SettingsScreen title="Theme" subtitle="Appearance">
+    <SettingsScreen title={t('pickers.themeTitle')} subtitle={t('pickers.themeSubtitle')}>
       <PickerList
-        options={OPTIONS.map((o) => ({ key: o.key, label: o.label, description: o.description }))}
+        options={options.map((o) => ({ key: o.key, label: o.label, description: o.description }))}
         selected={theme}
         onSelect={(key) => {
           setTheme(key as ThemeMode);
