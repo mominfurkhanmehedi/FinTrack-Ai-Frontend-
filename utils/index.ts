@@ -1,4 +1,43 @@
-import { CURRENCIES, Transaction, TransactionType } from '../types';
+import { Transaction, TransactionType } from '../types';
+
+/**
+ * Every piece of currency maths and formatting lives in `./currency`, which is
+ * pure (no React Native, no network) and unit-testable. It is re-exported here
+ * so the app's long-standing `from '../utils'` import path keeps working
+ * without creating a second, divergent copy of the formatting rules.
+ */
+export {
+  BASE_CURRENCY,
+  SUPPORTED_CURRENCY_CODES,
+  convertAmount,
+  convertCurrency,
+  convertFromBase,
+  convertToBase,
+  currencyFractionDigits,
+  currencySymbol,
+  effectiveRate,
+  formatCompactAmount,
+  formatMoney,
+  formatMoneyAmount,
+  formatMoneyCompact,
+  hasRateFor,
+  isSupportedCurrency,
+  normalizeCurrency,
+  planCurrencyChange,
+  reconcileCurrencyFromRecords,
+  recordCurrency,
+  roundForCurrency,
+  toInputValue,
+} from './currency';
+export type {
+  CurrencyChangeError,
+  CurrencyChangePlan,
+  CurrencyReconciliation,
+  MonetaryData,
+  MonetaryDataInput,
+  RateTable,
+  RatesSnapshot,
+} from './currency';
 
 /**
  * Safely coerce a value to a finite number, falling back to 0.
@@ -8,62 +47,6 @@ import { CURRENCIES, Transaction, TransactionType } from '../types';
 export function toNumber(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : 0;
-}
-
-const CURRENCY_LOCALES: Record<string, string> = { INR: 'en-IN' };
-
-/**
- * Symbol for a supported currency code — e.g. "₹" for INR, "$" for USD.
- * Reuses the shared CURRENCIES list so charts and formatters never need to
- * hardcode symbols and always stay in sync with the currency picker.
- */
-export function currencySymbol(currency = 'USD'): string {
-  const match = CURRENCIES.find((c) => c.code === currency);
-  return match?.symbol ?? currency;
-}
-
-/**
- * Locale that produces the native grouping for a currency. INR uses the Indian
- * "en-IN" grouping (₹10,00,000); everything else keeps western grouping.
- */
-function localeForCurrency(currency: string): string {
-  return CURRENCY_LOCALES[currency] ?? 'en-US';
-}
-
-/** Format a number as a currency string (defaults to USD). */
-export function formatCurrency(amount: number, currency = 'USD'): string {
-  return new Intl.NumberFormat(localeForCurrency(currency), {
-    style: 'currency',
-    currency,
-  }).format(amount);
-}
-
-/**
- * Compact money for tight spaces, e.g. $1.2k / ₹2.5K / ₹1L.
- * INR uses Indian compact units: K (thousand), L (lakh), Cr (crore).
- */
-export function formatCompact(amount: number, currency = 'USD'): string {
-  if (currency === 'INR') {
-    return `${currencySymbol(currency)}${compactNumber(amount)}`;
-  }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(amount);
-}
-
-/** Compact number for INR: 0, 2.5K, 75K, 1L, 12.5L, 2Cr, … */
-function compactNumber(amount: number): string {
-  const abs = Math.abs(amount);
-  // Drop trailing ".0" and cap non-integers at one decimal place.
-  const trim = (n: number) =>
-    Number.isInteger(n) ? String(Math.round(n)) : n.toFixed(1).replace(/\.0$/, '');
-  if (abs >= 1e7) return `${trim(amount / 1e7)}Cr`;
-  if (abs >= 1e5) return `${trim(amount / 1e5)}L`;
-  if (abs >= 1e3) return `${trim(amount / 1e3)}K`;
-  return trim(amount);
 }
 
 /** Human-friendly date from an ISO `yyyy-mm-dd` string. */
@@ -98,7 +81,15 @@ export function isoToday(offsetDays = 0): string {
   return toLocalIso(d);
 }
 
-/** Total amount for a list of transactions of a given type. */
+/**
+ * Total amount for a list of transactions of a given type.
+ *
+ * Aggregates in the currency the records are stored in, which is always the
+ * user's currently selected currency. No conversion is applied here or at the
+ * call site, so a total on screen is exactly the sum of the amounts listed
+ * above it, and every ratio derived from two aggregates (category shares,
+ * budget percentages) is likewise identical to the one the user entered.
+ */
 export function sumByType(txs: Transaction[], type: TransactionType): number {
   return txs
     .filter((t) => t.type === type)

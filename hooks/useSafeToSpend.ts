@@ -53,6 +53,12 @@ export function useSafeToSpend() {
     format: money.format,
     formatCompact: money.formatCompact,
     currency: money.currency,
+    /**
+     * Display -> base conversion for values the user typed. Falls back to the
+     * input when no rate is available, so a rate outage degrades the assistant
+     * rather than breaking it.
+     */
+    toBase: (n: number) => money.toBase(n) ?? n,
     statusTone: statusToneOf(breakdown.safeToSpend, forecast.status),
   };
 }

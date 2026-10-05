@@ -6,7 +6,8 @@ import {
   SimulationType,
 } from './safeToSpend';
 import { Goal, Transaction } from '../types';
-import { toNumber } from '../utils';
+import { BASE_CURRENCY, toNumber } from '../utils';
+import { api } from './axios';
 
 /**
  * ASK FINTRACK — AI service abstraction.
@@ -23,6 +24,22 @@ import { toNumber } from '../utils';
  *
  * Context is built from real app data and only what is needed to answer the
  * question is attached — nothing extra is ever sent.
+ *
+ * CURRENCY
+ * --------
+ * Every raw figure in this module (transactions, goals, the safety buffer and
+ * therefore every `calculate*` result) is denominated in the user's currently
+ * selected currency, which is also the currency it is stored in. The two
+ * currency-aware members of `FinTrackContext` are:
+ *   - `format(amount)` — renders a stored amount in that currency;
+ *   - `toBase(amount)` — normalizes an amount the USER TYPED to the same
+ *     currency before it is compared against a computed figure.
+ * Getting that second direction right is what stops "Can I afford 500?" from
+ * being compared against a figure rounded to a different currency's minor unit.
+ *
+ * Example prompts are phrased with the user's own real figures rather than
+ * hardcoded amounts, so they are always in the right currency and always
+ * plausible for that user.
  */
 
 export type AiProviderHandler = (question: string, context: FinTrackContext) => Promise<string>;
@@ -33,6 +50,17 @@ export interface FinTrackContext {
   goalEstimates: GoalEstimate[];
   /** Pure money formatter bound to the user's selected currency. */
   format: (n: number) => string;
+  /**
+   * Selected display currency code (e.g. "JPY"), so a provider knows which
+   * currency the preformatted strings below are in.
+   */
+  currency: string;
+  /**
+   * Normalizes an amount the user typed to the same currency (and the same minor
+   * unit) as the figures it is compared against, so "can I afford 500?" is
+   * answered against a like-for-like number.
+   */
+  toBase: (n: number) => number;
   emergencyBuffer: number | null;
 }
 
@@ -54,6 +82,54 @@ export function configureAiProvider(handler: AiProviderHandler | null): void {
 const API_URL = process.env.EXPO_PUBLIC_AI_API_URL;
 const API_KEY = process.env.EXPO_PUBLIC_AI_API_KEY;
 
+/**
+ * Builds the JSON body for the default REST provider.
+ *
+ * A function-valued `format` is silently dropped by `JSON.stringify`, which
+ * would leave a model reasoning about raw numbers with no idea which currency
+ * they are in. The payload therefore carries the currency code AND a `formatted`
+ * block with every headline figure already rendered, so the provider can quote
+ * the user directly instead of guessing the unit.
+ */
+function providerPayload(question: string, context: FinTrackContext) {
+  const breakdown = breakdownOf(context);
+  const daily = dailyOf(context);
+  const { format } = context;
+  return {
+    question,
+    context: {
+      currency: context.currency,
+      // Every figure below is denominated in `context.currency` — the selected
+      // currency IS the stored currency, because selecting a new one permanently
+      // converts the data. Stating a separate base here would tell a model the
+      // numbers are in some other unit than the one it is asked about.
+      dataCurrency: context.currency,
+      formatted: {
+        balance: format(breakdown.balance),
+        safeToSpend: format(breakdown.safeToSpend),
+        dailySafeToSpend: format(daily.daily),
+        goalReserve: format(breakdown.goalReserve),
+        upcomingExpenses: format(breakdown.upcomingExpenses),
+        emergencyBuffer: format(breakdown.emergencyBuffer),
+        daysRemaining: daily.daysRemaining,
+      },
+      // Raw figures, in the same currency declared above, for a provider that
+      // wants to do its own arithmetic rather than quote the rendered strings.
+      figures: {
+        balance: breakdown.balance,
+        safeToSpend: breakdown.safeToSpend,
+        dailySafeToSpend: daily.daily,
+        goalReserve: breakdown.goalReserve,
+        upcomingExpenses: breakdown.upcomingExpenses,
+        emergencyBuffer: breakdown.emergencyBuffer,
+      },
+      goals: context.goals,
+      transactions: context.transactions,
+      emergencyBuffer: context.emergencyBuffer,
+    },
+  };
+}
+
 /** Default REST provider — used only when env vars are configured. */
 async function defaultRestProvider(question: string, context: FinTrackContext): Promise<string> {
   if (!API_URL) throw new Error('EXPO_PUBLIC_AI_API_URL is not configured');
@@ -63,7 +139,7 @@ async function defaultRestProvider(question: string, context: FinTrackContext): 
       'Content-Type': 'application/json',
       ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
     },
-    body: JSON.stringify({ question, context }),
+    body: JSON.stringify(providerPayload(question, context)),
   });
   if (!res.ok) throw new Error(`AI provider error (${res.status})`);
   const json: unknown = await res.json();
@@ -77,17 +153,23 @@ export async function askFinTrack(
 ): Promise<AiAnswer> {
   const trimmed = question.trim();
 
-  // 1) Real provider first (when configured).
-  const handler = providerHandler ?? (API_URL ? defaultRestProvider : null);
-  if (handler) {
-    try {
-      const text = await handler(trimmed, context);
-      return { text, source: 'provider' };
-    } catch (err) {
-      // Fall through to the local analyzer when the provider is unavailable so
-      // the user still gets a data-based answer instead of a hard failure.
-      console.warn('[askFinTrack] provider failed, using local analyzer:', err);
+  // 1) Backend API first (primary source).
+  try {
+    console.log('[askFinTrack] POST /ai/ask request:', { question: trimmed });
+    const response = await api.post<{ success: boolean; data: { answer: AiAnswer } }>('/ai/ask', {
+      question: trimmed,
+    });
+    console.log('[askFinTrack] POST /ai/ask response:', { status: response.status, data: response.data });
+    if (response.data.success && response.data.data?.answer) {
+      return response.data.data.answer;
     }
+    console.warn('[askFinTrack] POST /ai/ask unexpected response shape:', response.data);
+  } catch (err: any) {
+    // Fall through to the local analyzer when the backend is unavailable.
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    const message = err?.message;
+    console.error('[askFinTrack] POST /ai/ask ERROR:', { status, data, message, error: err });
   }
 
   // 2) Honest local fallback calculated from the real data.
@@ -106,6 +188,13 @@ const dailyOf = (context: FinTrackContext) =>
 
 const moneyMatch = /(\d[\d,]*\.?\d*)/;
 
+/**
+ * Pulls a money amount out of a free-text question.
+ *
+ * The result is in the selected currency (the user typed "₹15,000" or "$500"),
+ * which is also the currency every stored figure is in, so the caller only
+ * normalizes it to that currency's minor unit before comparing.
+ */
 function detectAmount(text: string): number | null {
   const m = moneyMatch.exec(text);
   return m ? toNumber(Number(m[1].replace(/,/g, ''))) : null;
@@ -127,6 +216,23 @@ function analyzeLocal(question: string, context: FinTrackContext): string {
   const breakdown = breakdownOf(context);
   const daily = dailyOf(context);
 
+  /**
+   * A typed amount -> the figure the calculators work with (in the same currency
+   * as the stored data) and the string the user reads. Null when the question had
+   * no amount.
+   */
+  const typed = (): { amount: number; display: string } | null => {
+    const raw = detectAmount(question);
+    if (raw == null) return null;
+    const amount = context.toBase(raw);
+    return { amount, display: format(amount) };
+  };
+
+  // A plausible, currency-correct example built from the user's own figures —
+  // used in the "tell me an amount" prompts instead of a hardcoded ₹ value.
+  const exampleSpend = format(Math.max(Math.round(breakdown.safeToSpend), 1));
+  const exampleSave = format(Math.max(Math.round(daily.daily * 30), 1));
+
   const spendToday = /\b(spend|afford|spending|safe to spend|how much can)\b/.test(q) && /(today|now|day|month)/.test(q);
   const afford = /(afford|comfortably)/.test(q);
   const goal = /(goal|save .* for|reach|complete)/.test(q) && /(how long|when|eta|complete|reach)/.test(q);
@@ -135,11 +241,11 @@ function analyzeLocal(question: string, context: FinTrackContext): string {
   const topExpense = /(which|what) .*(expense|category|spend).*(goal|affect|impact|biggest|largest)/.test(q);
 
   if (spendToday || afford) {
-    const amount = detectAmount(question);
-    if (afford && amount != null) {
-      const enough = amount <= Math.max(breakdown.safeToSpend, 0);
+    const asked = typed();
+    if (afford && asked) {
+      const enough = asked.amount <= Math.max(breakdown.safeToSpend, 0);
       return (
-        `Based on your data, a ${format(amount)} purchase is ${enough ? 'affordable' : 'not currently affordable'}. ` +
+        `Based on your data, a ${asked.display} purchase is ${enough ? 'affordable' : 'not currently affordable'}. ` +
         `You can safely spend ${format(Math.max(breakdown.safeToSpend, 0))} right now — that already protects your goals, ` +
         `upcoming expenses, and safety buffer. Your daily safe-to-spend is ${format(daily.daily)}/day` +
         (enough ? '.' : ` — this would need to come from your reserve.`)
@@ -171,11 +277,11 @@ function analyzeLocal(question: string, context: FinTrackContext): string {
 
   if (simulate) {
     const type = detectType(question);
-    const amount = detectAmount(question);
-    if (type != null && amount != null && amount > 0) {
+    const asked = typed();
+    if (type != null && asked && asked.amount > 0) {
       const result = simulateFinancialChange(
         { transactions: context.transactions, goals: context.goals, emergencyBuffer: context.emergencyBuffer },
-        { type, amount },
+        { type, amount: asked.amount },
       );
       return (
         `${result.impact.verdict}. Safe-to-spend would change from ${format(result.base.safeToSpend)} to ` +
@@ -184,7 +290,7 @@ function analyzeLocal(question: string, context: FinTrackContext): string {
         '(Simulation only — nothing was changed in your records.)'
       );
     }
-    return 'Tell me an amount with your question — e.g. "What if I spend ₹15,000?" or "What if I save ₹2,000 more every month?"';
+    return `Tell me an amount with your question — e.g. "What if I spend ${exampleSpend}?" or "What if I save ${exampleSave} more every month?"`;
   }
 
   if (explainLow) {
@@ -213,8 +319,8 @@ function analyzeLocal(question: string, context: FinTrackContext): string {
   }
 
   return (
-    'I can help with questions like "How much can I spend today?", "Can I afford ₹15,000?", ' +
-    '"How long until I reach my goal?", "What if I save ₹2,000 more every month?", "Why is my ' +
+    `I can help with questions like "How much can I spend today?", "Can I afford ${exampleSpend}?", ` +
+    `"How long until I reach my goal?", "What if I save ${exampleSave} more every month?", "Why is my ` +
     'safe-to-spend low?", or "Which expense affects my goal the most?". An AI provider can be ' +
     'connected in services/ai.ts to answer broader questions.'
   );

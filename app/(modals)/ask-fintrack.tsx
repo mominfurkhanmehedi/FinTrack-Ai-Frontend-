@@ -37,7 +37,7 @@ const nextId = () => `msg-${++messageCount}`;
  * beyond the question's context and nothing is ever modified.
  */
 export default function AskFinTrack() {
-  const { transactions, goals, goalEstimates, format } = useSafeToSpend();
+  const { transactions, goals, goalEstimates, format, currency, toBase } = useSafeToSpend();
   const emergencyBuffer = useAppStore((s) => s.emergencyBuffer);
   const { t } = useI18n();
   const scrollRef = useRef<ScrollView>(null);
@@ -66,6 +66,8 @@ export default function AskFinTrack() {
         goals,
         goalEstimates,
         format,
+        currency,
+        toBase,
         emergencyBuffer,
       });
       setMessages((m) => [...m, { id: nextId(), role: 'assistant', text: answer.text, source: answer.source }]);

@@ -19,6 +19,11 @@ import { isoToday, netBalance } from '../../utils';
  *
  * Validation: amount must be numeric and greater than 0, and it must not
  * exceed the user's available total balance.
+ *
+ * The amount is typed in the selected currency, which is also the currency every
+ * stored amount is denominated in. Both writes below therefore use the typed
+ * figure unchanged, which keeps the goal's `saved` total and the recorded
+ * expense exactly equal.
  */
 export default function AddSaving() {
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
@@ -26,7 +31,7 @@ export default function AddSaving() {
   const transactions = useAppStore((s) => s.transactions);
   const updateGoal = useAppStore((s) => s.updateGoal);
   const addTransaction = useAppStore((s) => s.addTransaction);
-  const { format } = useMoney();
+  const { format, symbol, toBase } = useMoney();
   const { t } = useI18n();
 
   const goal = goals.find((g) => g.id === goalId);
@@ -37,30 +42,35 @@ export default function AddSaving() {
   const hasEntry = amount.trim() !== '';
   const isNumeric = Number.isFinite(parsed);
   const positive = isNumeric && parsed > 0;
-  const withinBalance = isNumeric && parsed <= balance;
-  const valid = hasEntry && positive && withinBalance;
+  // The amount is stored in the selected currency, which is the unit `balance`
+  // and `goal.saved` are held in, so no conversion happens here.
+  const stored = positive ? toBase(parsed) : null;
+  const withinBalance = stored !== null && stored <= balance;
+  const valid = hasEntry && positive && stored !== null && withinBalance;
 
   let error: string | undefined;
   if (hasEntry && !valid) {
     if (!isNumeric || parsed <= 0) {
       error = t('addSaving.errPositive');
-    } else if (parsed > balance) {
+    } else if (stored === null) {
+      error = t('transactions.form.invalidAmount');
+    } else if (stored > balance) {
       error = t('addSaving.errExceeds', { amount: format(balance) });
     }
   }
 
   const submit = () => {
-    if (!goal || !valid) return;
+    if (!goal || !valid || stored === null) return;
     // 1) Increase the goal's saved amount — persisted (Zustand → AsyncStorage
     //    → Supabase) via the existing updateGoal action.
-    updateGoal(goal.id, { saved: goal.saved + parsed });
+    updateGoal(goal.id, { saved: goal.saved + stored });
     const savingTitle = t('addSaving.saveTitle', { goal: goal.title });
     // 2) Record the saving as an expense transaction so the Total Balance
     //    (computed as income − expenses from the shared store) decreases by
     //    the same amount. synced through the existing addTransaction action.
     addTransaction({
       title: savingTitle,
-      amount: parsed,
+      amount: stored,
       type: 'expense',
       category: 'Savings',
       date: isoToday(),
@@ -128,6 +138,7 @@ export default function AddSaving() {
           keyboardType="decimal-pad"
           placeholder="0.00"
           error={error}
+          leftIcon={<Text className="text-gray-400 font-semibold text-base">{symbol}</Text>}
         />
 
         {/* Available balance */}
@@ -142,12 +153,12 @@ export default function AddSaving() {
         </View>
 
         {/* Preview */}
-        {valid && (
+        {valid && stored !== null && (
           <View className="flex-row items-center gap-2 mb-4 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800">
             <Ionicons name="trending-up-outline" size={16} color="#16a34a" />
             <Text className="text-sm text-green-700 dark:text-green-400">
               {t('addSaving.newTotal', { amount: '' })}
-              <Text className="font-semibold">{format(goal.saved + parsed)}</Text>
+              <Text className="font-semibold">{format(goal.saved + stored)}</Text>
             </Text>
           </View>
         )}

@@ -74,14 +74,22 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), h
  */
 export function SpendingOverview() {
   const transactions = useAppStore((s) => s.transactions);
-  const { format, formatCompact } = useMoney();
+  const { convert, formatValue, formatCompactValue } = useMoney();
   const { isDark } = useTheme();
   const { t, dayShort, dayFull } = useI18n();
 
   const [width, setWidth] = useState(0);
   const [active, setActive] = useState<number | null>(null);
 
-  const days = useMemo(() => buildDays(transactions), [transactions]);
+  // `buildDays` totals stored expenses, which are already in the selected
+  // currency. The bars are plotted from those same numbers, so the geometry, the
+  // axis scale and the axis labels all describe one value (hence
+  // `formatCompactValue`, which never converts a second time). `totalSpent` is
+  // their sum, so the headline total is exactly the sum of the bars above it.
+  const days = useMemo(() => {
+    const base = buildDays(transactions);
+    return base.map((d) => ({ ...d, spent: convert(d.spent) ?? d.spent }));
+  }, [transactions, convert]);
   const totalSpent = useMemo(() => days.reduce((sum, d) => sum + d.spent, 0), [days]);
   const maxSpent = useMemo(() => Math.max(...days.map((d) => d.spent), 0), [days]);
 
@@ -103,7 +111,7 @@ export function SpendingOverview() {
   const scaleMax = niceMax(maxSpent);
   const ticks = Array.from({ length: Y_TICKS + 1 }, (_, t) => (scaleMax * t) / Y_TICKS);
 
-  const widestLabel = Math.max(...ticks.map((t) => formatCompact(t).length));
+  const widestLabel = Math.max(...ticks.map((t) => formatCompactValue(t).length));
   const GUTTER = Math.max(44, Math.min(64, widestLabel * 6.5 + 16));
   const TOP_PAD = 16;
   const X_LABEL_H = 18;
@@ -135,7 +143,7 @@ export function SpendingOverview() {
         strokeDasharray={ti === 0 ? undefined : '4 6'}
       />
       <SvgText x={str(plotX0 - 8)} y={str(y(t) + 4)} fontSize={str(10)} fill={isDark ? '#9ca3af' : '#6b7280'} textAnchor="end">
-        {formatCompact(t)}
+        {formatCompactValue(t)}
       </SvgText>
     </G>
   ));
@@ -165,7 +173,7 @@ export function SpendingOverview() {
             fill={isMax ? COLORS.brand : isDark ? '#a5b4fc' : '#818cf8'}
             textAnchor="middle"
           >
-            {formatCompact(d.spent)}
+            {formatCompactValue(d.spent)}
           </SvgText>
         )}
       </G>
@@ -191,7 +199,7 @@ export function SpendingOverview() {
           {t('dashboard.last7Days')}
         </Text>
         <Text className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          {t('dashboard.totalSpent')}: {format(totalSpent)}
+          {t('dashboard.totalSpent')}: {formatValue(totalSpent)}
         </Text>
       </View>
 
@@ -213,7 +221,7 @@ export function SpendingOverview() {
                 onPress={() => setActive((cur) => (cur === i ? null : i))}
                 onHoverIn={() => setActive(i)}
                 onHoverOut={() => setActive(null)}
-                accessibilityLabel={`${dayFull[d.weekday]}, ${format(d.spent)}`}
+                accessibilityLabel={`${dayFull[d.weekday]}, ${formatValue(d.spent)}`}
               />
             ))}
           </View>
@@ -236,7 +244,7 @@ export function SpendingOverview() {
                 {dayFull[days[active].weekday]}
               </Text>
               <Text className="mt-0.5 text-base font-bold text-gray-900 dark:text-gray-100">
-                {days[active].spent > 0 ? format(days[active].spent) : t('dashboard.noSpending')}
+                {days[active].spent > 0 ? formatValue(days[active].spent) : t('dashboard.noSpending')}
               </Text>
               {days[active].spent > 0 && (
                 <Text className="text-[10px] text-gray-400 dark:text-gray-500">

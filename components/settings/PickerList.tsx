@@ -28,16 +28,16 @@ export function PickerList({
       {options.map((opt, i) => {
         const isSelected = opt.key === selected;
         return (
-          <Pressable
-            key={opt.key}
-            accessibilityRole="button"
-            onPress={() => onSelect(opt.key)}
-            className={`flex-row items-center justify-between py-3 ${
-              i < options.length - 1
-                ? 'border-b border-gray-100 dark:border-gray-800'
-                : ''
-            } active:bg-gray-50 dark:active:bg-gray-800 px-1 -mx-1 rounded-lg`}
-          >
+<Pressable
+              key={opt.key}
+              accessibilityRole="button"
+              onPress={() => onSelect(opt.key)}
+              className={`flex-row items-center justify-between py-3 ${
+                i < options.length - 1
+                  ? 'border-b border-gray-100 dark:border-gray-800'
+                  : ''
+              } active:bg-gray-50 dark:active:bg-gray-800 px-4 rounded-lg`}
+            >
             <View className="flex-1 pr-2">
               <Text className="text-base text-gray-900 dark:text-gray-100">{opt.label}</Text>
               {opt.description ? (

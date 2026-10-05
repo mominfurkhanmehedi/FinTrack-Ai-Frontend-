@@ -21,12 +21,14 @@ const tscJs = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
 
 rmSync(outDir, { recursive: true, force: true });
 
-console.log('[tests] transpiling services/safeToSpend.ts + services/tokenClaims.ts + components/reports/reportData.ts + components/reports/reportChartMath.ts + components/insights/calendarData.ts + components/insights/insightMetrics.ts → .test-build/');
+console.log('[tests] transpiling utils/currency.ts + services/rateProviders.ts + services/safeToSpend.ts + services/tokenClaims.ts + components/reports/reportData.ts + components/reports/reportChartMath.ts + components/insights/calendarData.ts + components/insights/insightMetrics.ts → .test-build/');
 const build = spawnSync(
   process.execPath,
   [
     tscJs,
     '--ignoreConfig',
+    path.join('utils', 'currency.ts'),
+    path.join('services', 'rateProviders.ts'),
     path.join('services', 'safeToSpend.ts'),
     path.join('services', 'tokenClaims.ts'),
     path.join('components', 'reports', 'reportData.ts'),
@@ -53,9 +55,19 @@ if (build.status !== 0) {
 }
 
 console.log('[tests] running node --test tests/');
+const TESTS = [
+  'currency.test.mjs',
+  'currencyConversion.test.mjs',
+  'rateProviders.test.mjs',
+  'finance.test.mjs',
+  'reports.test.mjs',
+  'reportChartMath.test.mjs',
+  'calendar.test.mjs',
+  'authSession.test.mjs',
+];
 const run = spawnSync(
   process.execPath,
-  ['--test', path.join('tests', 'finance.test.mjs'), path.join('tests', 'reports.test.mjs'), path.join('tests', 'reportChartMath.test.mjs'), path.join('tests', 'calendar.test.mjs'), path.join('tests', 'authSession.test.mjs')],
+  ['--test', ...TESTS.map((f) => path.join('tests', f))],
   { cwd: root, stdio: 'inherit' },
 );
 

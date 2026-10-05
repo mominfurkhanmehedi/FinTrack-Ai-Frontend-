@@ -15,7 +15,7 @@ import {
 } from '../../services/safeToSpend';
 import { useAppStore } from '../../store';
 import { useMoney } from '../../hooks';
-import { formatDate, toNumber } from '../../utils';
+import { formatDate } from '../../utils';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -24,12 +24,18 @@ type IoniconName = ComponentProps<typeof Ionicons>['name'];
  * Hypothetical scenarios run against the user's REAL data via the pure
  * calculation layer. Nothing is written to the store — this screen is a
  * read-only projection and is labeled as such.
- */
+ *
+  * The scenario amount is typed in the selected currency, which is also the
+  * currency every stored amount is denominated in, so it reaches the calculator
+  * unchanged and every figure the calculator returns is already in the currency
+  * the user typed in.
+  */
+
 export default function WhatIf() {
   const transactions = useAppStore((s) => s.transactions);
   const goals = useAppStore((s) => s.goals);
   const emergencyBuffer = useAppStore((s) => s.emergencyBuffer);
-  const { format } = useMoney();
+  const { format, symbol, toBase } = useMoney();
   const { t, locale } = useI18n();
 
   const [type, setType] = useState<SimulationType>('spend');
@@ -39,17 +45,22 @@ export default function WhatIf() {
   const parsed = parseFloat(amount);
   const hasEntry = amount.trim() !== '';
   const positive = Number.isFinite(parsed) && parsed > 0;
-  const valid = hasEntry && positive;
+  const scenarioAmount = positive ? toBase(parsed) : null;
+  const valid = hasEntry && positive && scenarioAmount !== null;
 
   let error: string | undefined;
-  if (hasEntry && !positive) error = t('whatIf.enterPositive');
+  if (hasEntry && positive && scenarioAmount === null) {
+    error = t('transactions.form.invalidAmount');
+  } else if (hasEntry && !positive) {
+    error = t('whatIf.enterPositive');
+  }
 
   const simulate = () => {
-    if (!valid) return;
+    if (!valid || scenarioAmount === null) return;
     setResult(
       simulateFinancialChange(
         { transactions, goals, emergencyBuffer },
-        { type, amount: toNumber(parsed) },
+        { type, amount: scenarioAmount },
       ),
     );
   };
@@ -160,6 +171,7 @@ export default function WhatIf() {
           keyboardType="decimal-pad"
           placeholder="0.00"
           error={error}
+          leftIcon={<Text className="text-gray-400 font-semibold text-base">{symbol}</Text>}
         />
 
         <Button title={t('whatIf.simulate')} onPress={simulate} disabled={!valid} fullWidth />

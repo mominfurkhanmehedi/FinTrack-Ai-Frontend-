@@ -4,30 +4,40 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button, Input } from '../../components/ui';
+import { useMoney } from '../../hooks';
 import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
 
 /**
  * Modal: AddGoal
  * Creates a new savings goal.
+ *
+ * The target is typed in the selected currency (the field shows that currency's
+ * symbol) and stored in it, so a goal created while the app is set to JPY holds
+ * the value the user entered. Switching currency later converts the target and
+ * the savings together.
  */
 export default function AddGoal() {
   const addGoal = useAppStore((s) => s.addGoal);
+  const { symbol, toBase } = useMoney();
   const { t } = useI18n();
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState('');
 
   const parsedTarget = parseFloat(target);
-  const valid =
-    title.trim().length > 0 && Number.isFinite(parsedTarget) && parsedTarget > 0;
+  const hasTarget = target.trim() !== '' && Number.isFinite(parsedTarget) && parsedTarget > 0;
+  const storedTarget = hasTarget ? toBase(parsedTarget) : null;
+  const valid = title.trim().length > 0 && hasTarget && storedTarget !== null;
 
   let error: string | undefined;
-  if (target.trim() !== '' && !valid) {
-    error = t('budget.enterTargetError');
+  if (target.trim() !== '') {
+    if (!hasTarget) error = t('budget.enterTargetError');
+    else if (storedTarget === null) error = t('transactions.form.invalidAmount');
   }
 
   const submit = () => {
-    addGoal({ title, target: parsedTarget, saved: 0 });
+    if (storedTarget === null) return;
+    addGoal({ title, target: storedTarget, saved: 0 });
     router.back();
   };
 
@@ -54,6 +64,7 @@ export default function AddGoal() {
           keyboardType="decimal-pad"
           placeholder="0.00"
           error={error}
+          leftIcon={<Text className="text-gray-400 font-semibold text-base">{symbol}</Text>}
         />
 
         <Button title={t('budget.createGoal')} onPress={submit} disabled={!valid} fullWidth />

@@ -123,6 +123,12 @@ const CATEGORIES: Category[] = [
 
 export interface TransactionFormValues {
   title: string;
+  /**
+   * The amount ready to be stored verbatim, in the selected currency. The field
+   * is typed in that same currency and the stored amounts are denominated in it
+   * too, so the number the user typed is the number that is persisted — no
+   * conversion happens on the way in or on the way out.
+   */
   amount: string;
   type: TransactionType;
   category: string;
@@ -130,7 +136,13 @@ export interface TransactionFormValues {
 }
 
 export interface TransactionFormProps {
-  initial?: TransactionFormValues;
+  /**
+   * `amount` is what the field shows, i.e. the stored value normalized to the
+   * currency's minor unit. `storedAmount`, when present, is the stored value
+   * itself: it is submitted verbatim if the user never touches the amount field,
+   * so a no-op edit cannot introduce a rounding drift.
+   */
+  initial?: TransactionFormValues & { storedAmount?: number };
   submitLabel: string;
   onSubmit: (values: TransactionFormValues) => void;
   submitting?: boolean;
@@ -143,6 +155,11 @@ export interface TransactionFormProps {
  *   Step 2 — Amount / title / date form with selected category in title bar
  *
  * No category section on the form page — category is fixed at step 1.
+ *
+ * The amount field is expressed in the selected currency and carries that
+ * currency's symbol. That is also the currency amounts are stored in, so the
+ * value handed to `onSubmit` is stored exactly as entered and nothing outside
+ * this component has to know which currency is selected.
  */
 export function TransactionForm({
   initial,
@@ -150,7 +167,7 @@ export function TransactionForm({
   onSubmit,
   submitting = false,
 }: TransactionFormProps) {
-  const { symbol } = useMoney();
+  const { symbol, currency, toBase } = useMoney();
   const { t } = useI18n();
 
   // If editing an existing transaction, skip straight to the form
@@ -162,6 +179,11 @@ export function TransactionForm({
   const [category, setCategory] = useState(initial?.category ?? '');
   const [date, setDate] = useState(initial?.date ?? isoToday());
 
+  // Whether the user actually edited the amount. Unedited edits reuse the exact
+  // stored base value instead of converting the display value back again.
+  const [amountTouched, setAmountTouched] = useState(false);
+  const [amountError, setAmountError] = useState<string | null>(null);
+
   const activeCat = CATEGORIES.find((c) => c.label === category);
   const activeCategoryLabel =
     category === 'Savings'
@@ -170,8 +192,33 @@ export function TransactionForm({
   const activeCategoryDescription = activeCat
     ? t(`categories.${activeCat.key}.description`)
     : t('categories.selectedCategory');
-  const valid = title.trim().length > 0 && parseFloat(amount) > 0;
-  const submit = () => onSubmit({ title, amount, type, category, date });
+
+  /**
+   * The number to persist, or `null` when the field does not hold a usable
+   * amount. The typed value is already in the currency amounts are stored in, so
+   * this only normalizes it to that currency's minor unit.
+   */
+  const resolveStoredAmount = (): number | null => {
+    if (!amountTouched && initial?.storedAmount != null) return initial.storedAmount;
+    const parsed = parseFloat(amount);
+    if (!Number.isFinite(parsed)) return null;
+    return toBase(parsed);
+  };
+
+  const typedAmount = parseFloat(amount);
+  const hasTypedAmount = amount.trim().length > 0 && Number.isFinite(typedAmount) && typedAmount > 0;
+  const unparseable = hasTypedAmount && resolveStoredAmount() === null;
+  const valid = title.trim().length > 0 && hasTypedAmount && !unparseable;
+
+  const submit = () => {
+    const stored = resolveStoredAmount();
+    if (stored === null) {
+      setAmountError(t('transactions.form.invalidAmount'));
+      return;
+    }
+    setAmountError(null);
+    onSubmit({ title, amount: String(stored), type, category, date });
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   // STEP 1 — Category Picker
@@ -433,9 +480,14 @@ export function TransactionForm({
         <Input
           label={t('transactions.form.amount')}
           value={amount}
-          onChangeText={setAmount}
+          onChangeText={(next) => {
+            setAmount(next);
+            setAmountTouched(true);
+            setAmountError(null);
+          }}
           keyboardType="decimal-pad"
           placeholder="0.00"
+          error={amountError ?? undefined}
           leftIcon={
             <Text className="text-gray-400 font-semibold text-base">{symbol}</Text>
           }

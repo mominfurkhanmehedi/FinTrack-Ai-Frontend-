@@ -34,6 +34,8 @@ export default function AddTransaction() {
         onSubmit={(values) => {
           addTransaction({
             title: values.title,
+            // Typed in the selected currency, which is the currency the store
+            // records it in.
             amount: parseFloat(values.amount),
             type: values.type,
             category: values.category,

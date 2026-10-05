@@ -55,13 +55,13 @@ const FAQS: AccordionItem[] = [
     id: 'currency',
     question: 'Does the app convert currencies?',
     answer:
-      'The currency setting changes how amounts are displayed. FinTrack AI does not currently retrieve exchange rates or convert the underlying value of a transaction, so use amounts in the same currency unless you have already converted them yourself.',
+      'Yes. The currency setting is the currency your data is stored in. When you choose a different currency, FinTrack AI converts your existing transactions, goals and savings to it and saves the converted amounts, so your data is always in the currency you selected. This conversion cannot be undone, so the app asks you to confirm first. Exchange rates come from a daily rate provider and need a connection the first time they are fetched.',
   },
   {
     id: 'export-data',
     question: 'How do I export my data?',
     answer:
-      'Go to Settings, choose Export Data, and select Export CSV. The current export includes the title, amount, type, category, and date of your transactions. You can share or save the file using your device.',
+      'Go to Settings, choose Export Data, and select Export CSV. The current export includes the title, amount, currency, type, category, and date of your transactions. You can share or save the file using your device.',
   },
   {
     id: 'delete-data',

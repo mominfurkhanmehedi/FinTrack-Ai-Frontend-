@@ -249,7 +249,7 @@ export function recoverSession(userId: string | null | undefined): Promise<Sessi
   }
 
   recoveredUsers.add(subject);
-  console.error(`[auth] Session recovery started for ${subject} — refreshing token once.`);
+  if (__DEV__) console.log(`[auth] Session recovery started for ${subject} — refreshing token once.`);
   inFlightRecovery = refreshOnce()
     .then(async (result) => {
       if (result.ok) {

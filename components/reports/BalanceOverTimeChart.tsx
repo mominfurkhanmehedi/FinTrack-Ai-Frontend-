@@ -29,14 +29,26 @@ const Y_TICKS = 4;
  * are currency-formatted through the shared `useMoney` formatter.
  */
 export function BalanceOverTimeChart({ transactions }: { transactions: Transaction[] }) {
-  const { format, formatCompact } = useMoney();
+  const { format, convert, formatValue, formatCompactValue } = useMoney();
   const { isDark } = useTheme();
   const { t, locale, dayShort } = useI18n();
   const [range, setRange] = useState(30);
   const [measured, setMeasured] = useState(0);
   const [active, setActive] = useState<number | null>(null);
 
+  // `points` is aggregated from stored amounts, which are already in the selected
+  // currency, so `format` renders every amount that is only *read* (the header
+  // pill, the tooltip rows, the accessibility labels) correctly.
   const points = useMemo(() => buildBalanceSeries(transactions, range), [transactions, range]);
+  // `plotted` is the same series passed through `convert`, which is what the
+  // scale, path and dots are built from. Keeping geometry and axis ticks in that
+  // same space is what stops the chart labelling its own bars with a wrong
+  // number, and it stays correct if a future change reintroduces a conversion
+  // step here.
+  const plotted = useMemo(
+    () => points.map((p) => ({ ...p, balance: convert(p.balance) ?? p.balance })),
+    [points, convert],
+  );
   const hasBalance = useMemo(
     () => points.some((p) => p.balance !== 0) || points.some((p) => p.hasActivity),
     [points],
@@ -90,7 +102,7 @@ export function BalanceOverTimeChart({ transactions }: { transactions: Transacti
     return date.toLocaleDateString(locale, { month: 'short' });
   };
 
-  const balanceValues = points.map((p) => p.balance);
+  const balanceValues = plotted.map((p) => p.balance);
   const minV = Math.min(...balanceValues, 0);
   const maxV = Math.max(...balanceValues, 0);
   const span = Math.max(maxV - minV, 1);
@@ -98,7 +110,7 @@ export function BalanceOverTimeChart({ transactions }: { transactions: Transacti
   const bottomV = minV - span * 0.08;
 
   const ticks = Array.from({ length: Y_TICKS + 1 }, (_, t) => bottomV + ((topV - bottomV) * t) / Y_TICKS);
-  const widestLabel = Math.max(...ticks.map((t) => formatCompact(t).length));
+  const widestLabel = Math.max(...ticks.map((t) => formatCompactValue(t).length));
   const GUTTER = Math.max(44, Math.min(72, widestLabel * 6.5 + 16));
   const TOP_PAD = 18;
   const X_LABEL_H = 18;
@@ -125,7 +137,7 @@ export function BalanceOverTimeChart({ transactions }: { transactions: Transacti
         strokeDasharray={ti === 0 || ti === Y_TICKS ? undefined : '4 6'}
       />
       <SvgText x={str(plotX0 - 8)} y={str(y(t) + 4)} fontSize={str(10)} fill={isDark ? '#9ca3af' : '#6b7280'} textAnchor="end">
-        {formatCompact(t)}
+        {formatCompactValue(t)}
       </SvgText>
     </G>
   ));
@@ -142,12 +154,12 @@ export function BalanceOverTimeChart({ transactions }: { transactions: Transacti
     />
   ) : null;
 
-  const linePath = buildPath(points.map((p, i) => ({ x: x(i), y: y(p.balance) })));
+  const linePath = buildPath(plotted.map((p, i) => ({ x: x(i), y: y(p.balance) })));
   const areaPath = linePath
     ? `${linePath} L ${x(n - 1)} ${plotY1} L ${x(0)} ${plotY1} Z`
     : '';
 
-  const dots = points
+  const dots = plotted
     .map((p, i) =>
       p.hasActivity ? (
         <Circle key={`dot-${i}`} cx={str(x(i))} cy={str(y(p.balance))} r={str(3.2)} fill={BRAND} />
@@ -218,7 +230,7 @@ export function BalanceOverTimeChart({ transactions }: { transactions: Transacti
                 />
               ) : null}
               {dots}
-              <Circle cx={str(x(n - 1))} cy={str(y(points[n - 1].balance))} r={str(4.5)} fill="#ffffff" stroke={BRAND} strokeWidth={str(2.5)} />
+              <Circle cx={str(x(n - 1))} cy={str(y(plotted[n - 1].balance))} r={str(4.5)} fill="#ffffff" stroke={BRAND} strokeWidth={str(2.5)} />
               {xLabels}
             </Svg>
 

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input } from '../../components/ui';
 import { ROUTES } from '../../constants/routes';
 import { useSafeToSpend } from '../../hooks';
+import { useMoney } from '../../hooks/useMoney';
 import { useI18n } from '../../i18n';
 import {
   AUTO_BUFFER_DAYS,
@@ -32,13 +33,21 @@ export default function SafeToSpendDetails() {
   const setEmergencyBuffer = useAppStore((s) => s.setEmergencyBuffer);
 
   const { daily, forecast, format, statusTone } = useSafeToSpend();
+  const { symbol, toBase, toInputValue } = useMoney();
   const { t } = useI18n();
 
+  // The safety buffer is stored in the selected currency, like every other
+  // monetary value, so the field shows it as-is and the preview uses it
+  // unchanged. Switching currency later converts the buffer with the rest of the
+  // data, so it stays worth the same real amount.
   const [mode, setMode] = useState<'auto' | 'custom'>(storeBuffer == null ? 'auto' : 'custom');
-  const [bufferInput, setBufferInput] = useState(storeBuffer != null ? String(storeBuffer) : '');
+  const [bufferInput, setBufferInput] = useState(
+    storeBuffer != null ? String(toInputValue(storeBuffer)) : '',
+  );
   const parsed = parseFloat(bufferInput);
+  // Preview of the buffer choice (persisted only on "Apply").
   const bufferPreview =
-    mode === 'custom' && Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    mode === 'custom' && Number.isFinite(parsed) && parsed >= 0 ? toBase(parsed) : null;
 
   // Live preview of the buffer choice (persisted only on "Apply").
   const preview = calculateSafeToSpend({
@@ -60,7 +69,7 @@ export default function SafeToSpendDetails() {
 
   const selectCustom = () => {
     setMode('custom');
-    setBufferInput(storeBuffer != null ? String(storeBuffer) : '');
+    setBufferInput(storeBuffer != null ? String(toInputValue(storeBuffer)) : '');
   };
 
   const rows: { label: string; amount: number; op: 'plus' | 'minus' | 'equals' }[] = [
@@ -211,6 +220,12 @@ export default function SafeToSpendDetails() {
               onChangeText={setBufferInput}
               keyboardType="decimal-pad"
               placeholder="0.00"
+              error={
+                bufferInput.trim() !== '' && parsed >= 0 && bufferPreview == null
+                  ? t('transactions.form.invalidAmount')
+                  : undefined
+              }
+              leftIcon={<Text className="text-gray-400 font-semibold text-base">{symbol}</Text>}
             />
             <Button
               title={t('safeToSpend.applyBuffer')}

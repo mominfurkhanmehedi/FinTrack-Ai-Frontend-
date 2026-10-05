@@ -8,6 +8,7 @@ import { useTheme } from '../hooks';
 import { mapSupabaseUser } from '../services/authService';
 import { getCachedProfilePicture } from '../services/profilePicture';
 import { describeSession, ensureUsableSession } from '../services/session';
+import { setAuthToken } from '../services/axios';
 import { supabase } from '../services/supabase';
 import { useAppStore, resetHydrationState } from '../store';
 import { User } from '../types';
@@ -24,8 +25,18 @@ export default function RootLayout() {
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
   const hydrateFromSupabase = useAppStore((s) => s.hydrateFromSupabase);
+  const refreshExchangeRates = useAppStore((s) => s.refreshExchangeRates);
   const clearAllData = useAppStore((s) => s.clearAllData);
   const { isDark } = useTheme();
+
+  // Fetch the shared exchange-rate table once, as soon as the app starts, so
+  // every financial screen has converted amounts available from its first
+  // frame. The service coalesces this with the per-screen requests in
+  // `useMoney` and honours its own TTL, so a restart within the TTL reuses the
+  // cached table and an offline start simply keeps serving it.
+  useEffect(() => {
+    void refreshExchangeRates();
+  }, [refreshExchangeRates]);
 
   // True while we check whether a real Supabase session exists on cold start.
   // Prevents a flash of the login screen before we know the real auth state.
@@ -87,6 +98,7 @@ export default function RootLayout() {
         if (!isMounted) return undefined;
         if (!session) {
           if (__DEV__) console.log('[auth] No usable session at startup.');
+          setAuthToken(null);
           setUser(null);
           clearAllData();
           return undefined;
@@ -94,6 +106,7 @@ export default function RootLayout() {
         if (__DEV__) {
           console.log(`[auth] Session exists at startup (${describeSession(session)}).`);
         }
+        setAuthToken(session.access_token);
         const sessionUser = session.user;
         if (!sessionUser) {
           console.error('[auth] Session exists but carries no user — treating as signed out.');
@@ -138,6 +151,7 @@ export default function RootLayout() {
 
         if (event === 'SIGNED_OUT') {
           console.log('[auth] Signed out — clearing transactions and goals.');
+          setAuthToken(null);
           lastAppliedUserId = null;
           // Raised both by a real sign-out and by session recovery purging a
           // token the server rejected, so the next sign-in must re-hydrate.
@@ -156,6 +170,7 @@ export default function RootLayout() {
         if (!sessionUser || !confirmed) return;
         if (sessionUser.id === lastAppliedUserId) return;
 
+        setAuthToken(session.access_token);
         void applyUser(mapSupabaseUser(sessionUser)).then(() => {
           if (isMounted) setIsCheckingSession(false);
         });

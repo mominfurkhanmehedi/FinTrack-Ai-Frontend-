@@ -25,14 +25,30 @@ const Y_TICKS = 4;
  * beyond color alone.
  */
 export function CashFlowChart({ transactions }: { transactions: Transaction[] }) {
-  const { format, formatCompact } = useMoney();
+  const { formatValue, convert, formatCompactValue } = useMoney();
   const { isDark } = useTheme();
   const { width } = useBreakpoint();
   const { t, dayShort, dayFull } = useI18n();
   const [measured, setMeasured] = useState(0);
   const [active, setActive] = useState<number | null>(null);
 
-  const days = useMemo(() => buildCashFlow(transactions, CASH_FLOW_DAYS), [transactions]);
+  // `buildCashFlow` aggregates stored amounts, which are already in the selected
+  // currency. The bars, the axis scale and the ticks are therefore all derived
+  // from the same numbers, so the geometry and the labels always describe the
+  // same value. Ticks are formatted with `formatCompactValue` rather than
+  // `format`, which keeps that true even if a conversion step is ever added back
+  // in above.
+  const days = useMemo(() => {
+    const base = buildCashFlow(transactions, CASH_FLOW_DAYS);
+    return base.map((d) => ({
+      ...d,
+      income: convert(d.income) ?? d.income,
+      expenses: convert(d.expenses) ?? d.expenses,
+    }));
+  }, [transactions, convert]);
+
+  // The legend chips show the same numbers the bars show, so they read from the
+  // converted series with the same pure formatter.
   const totals = useMemo(
     () => ({
       income: days.reduce((s, d) => s + d.income, 0),
@@ -61,7 +77,7 @@ export function CashFlowChart({ transactions }: { transactions: Transaction[] })
   const scaleMax = niceMax(Math.max(totals.income, totals.expenses, 1));
   const ticks = Array.from({ length: Y_TICKS + 1 }, (_, t) => (scaleMax * t) / Y_TICKS);
 
-  const widestLabel = Math.max(...ticks.map((t) => formatCompact(t).length));
+  const widestLabel = Math.max(...ticks.map((t) => formatCompactValue(t).length));
   const GUTTER = Math.max(44, Math.min(64, widestLabel * 6.5 + 16));
   const TOP_PAD = 18;
   const X_LABEL_H = 18;
@@ -94,7 +110,7 @@ export function CashFlowChart({ transactions }: { transactions: Transaction[] })
         strokeDasharray={ti === 0 ? undefined : '4 6'}
       />
       <SvgText x={str(plotX0 - 8)} y={str(y(t) + 4)} fontSize={str(10)} fill={isDark ? '#9ca3af' : '#6b7280'} textAnchor="end">
-        {formatCompact(t)}
+        {formatCompactValue(t)}
       </SvgText>
     </G>
   ));
@@ -137,7 +153,7 @@ export function CashFlowChart({ transactions }: { transactions: Transaction[] })
                   fill={s.color}
                   textAnchor="middle"
                 >
-                  {formatCompact(v)}
+                  {formatCompactValue(v)}
                 </SvgText>
               )}
             </G>
@@ -162,8 +178,8 @@ export function CashFlowChart({ transactions }: { transactions: Transaction[] })
       <Header subtitle={t('reports.cashFlowSubtitle')} />
 
       <View className="mb-3 flex-row flex-wrap items-center gap-x-4 gap-y-1.5">
-        <LegendChip color={INCOME_COLOR} label={t('reports.income')} value={format(totals.income)} />
-        <LegendChip color={EXPENSE_COLOR} label={t('reports.expenses')} value={format(totals.expenses)} />
+        <LegendChip color={INCOME_COLOR} label={t('reports.income')} value={formatValue(totals.income)} />
+        <LegendChip color={EXPENSE_COLOR} label={t('reports.expenses')} value={formatValue(totals.expenses)} />
       </View>
 
       <View className="w-full" onLayout={onLayout} style={{ position: 'relative' }}>
@@ -196,7 +212,7 @@ export function CashFlowChart({ transactions }: { transactions: Transaction[] })
                   onHoverIn={() => setActive(i)}
                   onHoverOut={() => setActive(null)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${dayFull[d.date.getDay()]}: ${t('reports.income')} ${format(d.income)}, ${t('reports.expenses')} ${format(d.expenses)}`}
+                  accessibilityLabel={`${dayFull[d.date.getDay()]}: ${t('reports.income')} ${formatValue(d.income)}, ${t('reports.expenses')} ${formatValue(d.expenses)}`}
                 />
               ))}
             </View>
@@ -205,8 +221,8 @@ export function CashFlowChart({ transactions }: { transactions: Transaction[] })
               <ChartTooltip
                 title={dayFull[days[active].date.getDay()]}
                 rows={[
-                  { label: t('reports.income'), value: format(days[active].income), color: INCOME_COLOR },
-                  { label: t('reports.expenses'), value: format(days[active].expenses), color: EXPENSE_COLOR },
+                  { label: t('reports.income'), value: formatValue(days[active].income), color: INCOME_COLOR },
+                  { label: t('reports.expenses'), value: formatValue(days[active].expenses), color: EXPENSE_COLOR },
                 ]}
                 style={{ left: tooltipLeft, top: 4 }}
               />
