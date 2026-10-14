@@ -13,6 +13,7 @@ export interface SettingRowProps {
   /** Rendered instead of the chevron (e.g. a Switch). */
   right?: React.ReactNode;
   danger?: boolean;
+  loading?: boolean;
 }
 
 /**
@@ -21,12 +22,13 @@ export interface SettingRowProps {
  * value / custom control on the right, and a chevron. Subtle divider between
  * rows (border-b, last row without it).
  */
-export function SettingRow({ icon, label, onPress, value, right, danger }: SettingRowProps) {
+export function SettingRow({ icon, label, onPress, value, right, danger, loading }: SettingRowProps) {
   const iconColor = danger ? '#ef4444' : '#4f46e5';
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
+      onPress={loading ? undefined : onPress}
+      disabled={loading}
       className="flex-row items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800 last:border-b-0 active:bg-gray-50 dark:active:bg-gray-800 px-1 -mx-1 rounded-lg"
     >
       <View className="flex-row items-center gap-3 flex-1">
@@ -37,7 +39,13 @@ export function SettingRow({ icon, label, onPress, value, right, danger }: Setti
       </View>
       <View className="flex-row items-center gap-2">
         {value ? <Text className="text-base text-gray-500 dark:text-gray-400">{value}</Text> : null}
-        {right ? right : <Ionicons name="chevron-forward" size={18} color="#9ca3af" />}
+        {loading ? (
+          <Ionicons name="refresh" size={18} color="#9ca3af" className="animate-spin" />
+        ) : right ? (
+          right
+        ) : (
+          <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+        )}
       </View>
     </Pressable>
   );

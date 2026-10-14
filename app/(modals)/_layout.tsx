@@ -17,6 +17,7 @@ export default function ModalsLayout() {
       <Stack.Screen name="edit-transaction" />
       <Stack.Screen name="transaction-detail" />
       <Stack.Screen name="add-goal" />
+      <Stack.Screen name="add-budget" />
       <Stack.Screen name="add-saving" />
       <Stack.Screen name="safe-to-spend" />
       <Stack.Screen name="what-if" />

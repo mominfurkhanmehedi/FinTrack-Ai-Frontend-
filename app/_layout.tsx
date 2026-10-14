@@ -12,6 +12,7 @@ import { setAuthToken } from '../services/axios';
 import { supabase } from '../services/supabase';
 import { useAppStore, resetHydrationState } from '../store';
 import { User } from '../types';
+import { ThemeInitializer } from '../components/ui/ThemeInitializer';
 
 /**
  * Root layout.
@@ -27,6 +28,7 @@ export default function RootLayout() {
   const hydrateFromSupabase = useAppStore((s) => s.hydrateFromSupabase);
   const refreshExchangeRates = useAppStore((s) => s.refreshExchangeRates);
   const clearAllData = useAppStore((s) => s.clearAllData);
+  const clearLocalFinancialData = useAppStore((s) => s.clearLocalFinancialData);
   const { isDark } = useTheme();
 
   // Fetch the shared exchange-rate table once, as soon as the app starts, so
@@ -100,7 +102,7 @@ export default function RootLayout() {
           if (__DEV__) console.log('[auth] No usable session at startup.');
           setAuthToken(null);
           setUser(null);
-          clearAllData();
+          clearLocalFinancialData();
           return undefined;
         }
         if (__DEV__) {
@@ -111,7 +113,7 @@ export default function RootLayout() {
         if (!sessionUser) {
           console.error('[auth] Session exists but carries no user — treating as signed out.');
           setUser(null);
-          clearAllData();
+          clearLocalFinancialData();
           return undefined;
         }
         if (__DEV__) console.log('[auth] Authenticated user exists:', sessionUser.id);
@@ -157,7 +159,7 @@ export default function RootLayout() {
           // token the server rejected, so the next sign-in must re-hydrate.
           resetHydrationState();
           setUser(null);
-          clearAllData();
+          clearLocalFinancialData();
           setIsCheckingSession(false);
           return;
         }
@@ -202,20 +204,19 @@ export default function RootLayout() {
     }
   }, [user, segments, router, isCheckingSession]);
 
-  if (isCheckingSession) {
-    // Keep this minimal — swap for a branded splash view if you have one.
-    return null;
-  }
-
   return (
-    <>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="(settings)" />
-      </Stack>
-    </>
+    <ThemeInitializer>
+      <>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        {isCheckingSession ? null : (
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(modals)" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="(settings)" />
+          </Stack>
+        )}
+      </>
+    </ThemeInitializer>
   );
 }

@@ -23,6 +23,7 @@ import { getExchangeRates, getSupportedCurrencies, getBaseCurrency, getCacheStat
 
 export const currencyRoutes = Router();
 
+// Public exchange-rate endpoints (work without authentication)
 currencyRoutes.get('/supported', asyncHandler(async (_req: Request, res: Response) => {
   return successResponse({
     currencies: getSupportedCurrencies(),
@@ -62,9 +63,18 @@ currencyRoutes.post('/rates/refresh', asyncHandler(async (req: Request, res: Res
   return successResponse(rates, res);
 }));
 
+// User-specific endpoints (require authentication)
+// GET /currency/preference - Returns the authenticated user's currency preference.
+// POST /currency/preference - Updates the authenticated user's currency preference.
+// NOTE: This endpoint only updates the profile currency column. It does NOT convert
+// stored transaction/goal/budget amounts. The frontend should use the atomic
+// currency conversion flow (setCurrency in store) which calls convert_currency_data RPC.
 currencyRoutes.get('/preference', asyncHandler(async (req: Request, res: Response) => {
+  if (!req.userId) {
+    throw ApiError.unauthorized('Authentication required');
+  }
   const client = getSupabaseClient(req.headers.authorization?.split(' ')[1]);
-  const userId = req.userId!;
+  const userId = req.userId;
 
   const { data: profile } = await client
     .from('profiles')
@@ -76,9 +86,12 @@ currencyRoutes.get('/preference', asyncHandler(async (req: Request, res: Respons
 }));
 
 currencyRoutes.post('/preference', asyncHandler(async (req: Request, res: Response) => {
+  if (!req.userId) {
+    throw ApiError.unauthorized('Authentication required');
+  }
   const input = currencySchema.parse(req.body);
   const client = getSupabaseClient(req.headers.authorization?.split(' ')[1]);
-  const userId = req.userId!;
+  const userId = req.userId;
 
   const { data: profile } = await client
     .from('profiles')
@@ -96,16 +109,22 @@ currencyRoutes.post('/preference', asyncHandler(async (req: Request, res: Respon
     .from('profiles')
     .upsert({ id: userId, currency: input.currency });
 
-  if (error) throw ApiError.badRequest(error.message);
+  if (error) {
+    console.error('[currency/preference] database error:', error.message);
+    throw ApiError.badRequest('Failed to update currency preference');
+  }
 
   return successResponse({ currency: input.currency, converted: true }, res);
 }));
 
+// POST /currency/convert - Convert an amount between currencies for the authenticated user.
+// Requires authentication. Validates input and uses the requested base currency for rate lookup.
 currencyRoutes.post('/convert', asyncHandler(async (req: Request, res: Response) => {
-  const client = getSupabaseClient(req.headers.authorization?.split(' ')[1]);
-  const userId = req.userId!;
+  if (!req.userId) {
+    throw ApiError.unauthorized('Authentication required');
+  }
 
-  const { from, to, amount } = req.body as { from: string; to: string; amount: number };
+  const { from, to, amount } = req.body as { from: string; to: string; amount: unknown };
 
   if (!from || !to || amount === undefined) {
     throw ApiError.badRequest('from, to, and amount are required');
@@ -115,13 +134,19 @@ currencyRoutes.post('/convert', asyncHandler(async (req: Request, res: Response)
     throw ApiError.badRequest('Unsupported currency');
   }
 
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
+    throw ApiError.badRequest('amount must be a non-negative finite number');
+  }
+
   if (from === to) {
     return successResponse({ from, to, amount, converted: amount }, res);
   }
 
-  const rates = await getExchangeRates('INR');
-  const fromRate = rates.rates[from] || (from === 'INR' ? 1 : null);
-  const toRate = rates.rates[to] || (to === 'INR' ? 1 : null);
+  // Fetch rates using the requested 'from' currency as base, so the conversion
+  // uses the correct rate pair. The getExchangeRates cache is now keyed by base.
+  const rates = await getExchangeRates(from);
+  const fromRate = rates.rates[from] || (from === getBaseCurrency() ? 1 : null);
+  const toRate = rates.rates[to] || (to === getBaseCurrency() ? 1 : null);
 
   if (!fromRate || !toRate) {
     throw ApiError.badRequest('Exchange rate not available for conversion');

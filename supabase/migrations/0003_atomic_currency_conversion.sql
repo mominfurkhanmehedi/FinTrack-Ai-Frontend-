@@ -33,14 +33,14 @@
 -- ---------
 -- `auth.uid()` is required, and both UPDATEs are additionally filtered by
 -- `user_id = auth.uid()`. That is the same owner check the RLS policies in
--- migration 0001 apply, restated inside the function so the guarantee does not
+-- migration 002 apply, restated inside the function so the guarantee does not
 -- depend on goals having RLS enabled. The function is SECURITY INVOKER, so RLS
 -- still applies on top of this.
 --
 -- Idempotency: CREATE OR REPLACE plus a re-grant, so re-running is safe.
 --
 -- Run this via `supabase db push` (Supabase CLI) or paste it into the Supabase
--- SQL editor. It must be applied AFTER 0002, since it writes the `currency`
+-- SQL editor. It must be applied AFTER 002, since it writes the `currency`
 -- column that migration adds.
 
 CREATE OR REPLACE FUNCTION public.convert_currency_data(

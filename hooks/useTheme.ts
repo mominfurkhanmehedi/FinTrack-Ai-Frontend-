@@ -1,44 +1,17 @@
-import { useEffect } from 'react';
-import { Appearance, Platform } from 'react-native';
-
 import { useAppStore } from '../store';
 import { ThemeMode } from '../types';
 
 /**
  * useTheme
- * Resolves the active theme from the stored preference ('light' | 'dark') and
- * applies it so NativeWind's `dark:` variants respond.
- *
- * IMPORTANT: The app is LIGHT by default. Only an explicit 'dark' selection
- * applies the dark palette.
- *
- * - Native (iOS/Android): Appearance.setColorScheme() forces the scheme and
- *   drives the color scheme observable NativeWind reads.
- * - Web: Appearance.setColorScheme() does not exist, so we toggle a "dark"
- *   class on the root <html> element instead (darkMode: 'class' config).
+ * Resolves the active theme from the stored preference ('light' | 'dark').
+ * Does NOT apply the theme — ThemeInitializer is the single source of truth
+ * for applying theme via Appearance.setColorScheme / document.documentElement.
  */
 export function useTheme(): { isDark: boolean; mode: ThemeMode } {
   const mode = useAppStore((s) => s.theme);
 
   // Dark only when the user explicitly picks 'dark'; 'light' renders light.
   const isDark = mode === 'dark';
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') {
-      // 'dark' forces the dark scheme; 'light' applies the light color scheme
-      // so the OS dark setting doesn't bleed in.
-      Appearance.setColorScheme(isDark ? 'dark' : 'light');
-      return;
-    }
-    // Web: toggle a "dark" class on the root element. NativeWind's class-based
-    // dark mode (darkMode: 'class') reacts to this class.
-    const root =
-      typeof document !== 'undefined' ? document.documentElement : null;
-    if (!root) {
-      return;
-    }
-    root.classList.toggle('dark', isDark);
-  }, [isDark]);
 
   return { isDark, mode };
 }

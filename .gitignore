@@ -10,3 +10,17 @@ web-build/
 
 expo-env.d.ts
 # @end expo-cli
+# Environment secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Local Supabase CLI state
+supabase/.temp/
+# Local diagnostic files - do not commit
+diagnose_rpc.js
+supabase/diagnose_rpc.sql
+supabase/full_diagnose.sql
+test_output*.txt
+ 

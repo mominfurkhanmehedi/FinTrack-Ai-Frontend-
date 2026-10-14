@@ -24,7 +24,11 @@ export default function EditProfile() {
 
   const save = () => {
     updateUser({ name: name.trim(), avatar });
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/settings');
+    }
   };
 
   return (

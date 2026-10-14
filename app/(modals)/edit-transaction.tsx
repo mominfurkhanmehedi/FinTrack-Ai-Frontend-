@@ -24,7 +24,11 @@ export default function EditTransaction() {
 
   const tx = transactions.find((t) => t.id === id);
   if (!tx) {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.dismiss();
+    }
     return null;
   }
 
@@ -49,7 +53,11 @@ export default function EditTransaction() {
             category: values.category,
             date: values.date,
           });
-          router.back();
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.dismiss();
+          }
         }}
       />
     </SafeAreaView>

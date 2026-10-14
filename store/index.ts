@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { authService } from '../services/authService';
@@ -17,8 +17,7 @@ import { ensureUsableSession, isAuthError, isNetworkError, recoverSession, reset
 import { setAuthToken } from '../services/axios';
 import { supabase } from '../services/supabase';
 import { storage } from '../services/storage';
-import { Goal, NotificationPrefs, ThemeMode, Transaction, User } from '../types';
-import {
+import { Budget, Goal, NotificationPrefs, ThemeMode, Transaction, User } from '../types';import {
   BASE_CURRENCY,
   RateTable,
   isoToday,
@@ -30,6 +29,35 @@ import {
   toNumber,
   uid,
 } from '../utils';
+
+/**
+ * Normalize a date string to ISO YYYY-MM-DD format.
+ * Accepts DD/MM/YYYY, D/M/YYYY, or YYYY-MM-DD.
+ * Returns the input unchanged if already ISO, or undefined if invalid.
+ */
+function normalizeDate(value: string | undefined | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = String(value).trim();
+  if (!trimmed) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parts = trimmed.split('/');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parseInt(parts[2], 10);
+    if (Number.isInteger(day) && Number.isInteger(month) && Number.isInteger(year)) {
+      if (month >= 1 && month <= 12 && year >= 1000 && year <= 9999) {
+        const daysInMonth = new Date(year, month, 0).getDate();
+        if (day >= 1 && day <= daysInMonth) {
+          const mm = String(month).padStart(2, '0');
+          const dd = String(day).padStart(2, '0');
+          return `${year}-${mm}-${dd}`;
+        }
+      }
+    }
+  }
+  return undefined;
+}
 
 // Tracks in-flight / most-recent Supabase hydration so repeated triggers
 // (React StrictMode double-effects, onAuthStateChange + explicit boot checks)
@@ -50,7 +78,7 @@ let activeCurrencyChange: Promise<CurrencyChangeResult> | null = null;
 /**
  * Forgets which account the store has already hydrated.
  *
- * Must be called whenever the authenticated account changes or disappears —
+ * Must be called whenever the authenticated account changes or disappears ΓÇö
  * including the `SIGNED_OUT` event that session recovery raises after it purges
  * a token the server rejected. Without it, signing back into the same account
  * would hit the "already hydrated" short-circuit in `hydrateFromSupabase` and
@@ -63,19 +91,20 @@ export function resetHydrationState(): void {
 
 /**
  * The single read of a user's server-side data. Kept as one function so the
- * auth-error retry below re-runs *exactly* the same query — same table, same
+ * auth-error retry below re-runs *exactly* the same query ΓÇö same table, same
  * `user_id` filter, same `date.desc` ordering.
  */
 async function runUserDataQueries(userId: string) {
-  const [txResult, goalResult] = await Promise.all([
+  const [txResult, goalResult, budgetResult] = await Promise.all([
     supabase
       .from('transactions')
       .select('*')
       .eq('user_id', userId)
       .order('date', { ascending: false }),
     supabase.from('goals').select('*').eq('user_id', userId),
+    supabase.from('budgets').select('*').eq('user_id', userId),
   ]);
-  return { txResult, goalResult };
+  return { txResult, goalResult, budgetResult };
 }
 
 type UserDataQueries = Awaited<ReturnType<typeof runUserDataQueries>>;
@@ -94,6 +123,9 @@ function pickAuthFailure(queries: UserDataQueries): { label: string; error: { me
   }
   if (isAuthError(queries.goalResult.error)) {
     return { label: 'goals', error: queries.goalResult.error };
+  }
+  if (isAuthError(queries.budgetResult.error)) {
+    return { label: 'budgets', error: queries.budgetResult.error };
   }
   return null;
 }
@@ -148,11 +180,12 @@ interface AppState {
   hasOnboarded: boolean;
   transactions: Transaction[];
   goals: Goal[];
+  budgets: Budget[];
 
   // Preferences
   theme: ThemeMode;
   /**
-   * The user's selected currency — and the currency EVERY stored monetary value
+   * The user's selected currency ΓÇö and the currency EVERY stored monetary value
    * is denominated in. These are deliberately the same thing: selecting a
    * different currency permanently converts the data (see `setCurrency`), so the
    * database always speaks the selected currency and the display layer never
@@ -170,7 +203,7 @@ interface AppState {
    */
   emergencyBuffer: number | null;
 
-  // Exchange rates. Never persisted here — `services/exchangeRates` owns the
+  // Exchange rates. Never persisted here ΓÇö `services/exchangeRates` owns the
   // cache (memory + storage) and mirrors it in, so there is exactly one copy
   // on disk and one fetch per app run.
   /**
@@ -212,7 +245,7 @@ interface AppState {
    * the currency the data is currently in into `currency` first.
    *
    * The conversion always starts from the currency the records are actually
-   * stored in — never a hardcoded base — so switching INR -> USD -> EUR converts
+   * stored in ΓÇö never a hardcoded base ΓÇö so switching INR -> USD -> EUR converts
    * INR -> USD -> EUR and never re-converts from INR.
    *
    * Resolves with `{ ok: false }` and changes nothing if the target currency is
@@ -242,9 +275,15 @@ interface AppState {
   updateGoal: (id: string, patch: Partial<Omit<Goal, 'id'>>) => void;
   deleteGoal: (id: string) => void;
 
+  // Budgets
+  addBudget: (input: Omit<Budget, 'id'>) => { error?: { message: string; category: string; period: string } } | void;
+  updateBudget: (id: string, patch: Partial<Omit<Budget, 'id'>>) => { error?: { message: string; category: string; period: string } } | void;
+  deleteBudget: (id: string) => void;
+
   // Data utilities
   resetDemoData: () => void;
-  clearAllData: () => void;
+  clearAllData: () => Promise<void>;
+  clearLocalFinancialData: () => void;
 
   // Supabase sync
   /**
@@ -261,19 +300,19 @@ interface AppState {
  * the user is actually working in.
  */
 const seededTransactions: Transaction[] = [
-  { id: 'tx-1', title: 'Salary', amount: 3200, type: 'income', category: 'Salary', date: isoToday(2) },
-  { id: 'tx-2', title: 'Rent', amount: 1200, type: 'expense', category: 'Housing', date: isoToday(3) },
-  { id: 'tx-3', title: 'Groceries', amount: 186.4, type: 'expense', category: 'Food', date: isoToday(5) },
-  { id: 'tx-4', title: 'Freelance project', amount: 500, type: 'income', category: 'Freelance', date: isoToday(6) },
-  { id: 'tx-5', title: 'Transport', amount: 64.2, type: 'expense', category: 'Transport', date: isoToday(8) },
-  { id: 'tx-6', title: 'Dining out', amount: 47.9, type: 'expense', category: 'Food', date: isoToday(10) },
-  { id: 'tx-7', title: 'Utilities', amount: 95.5, type: 'expense', category: 'Utilities', date: isoToday(12) },
+  { id: 'tx-1', title: 'Salary', amount: 3200, type: 'income', category: 'Salary', date: isoToday(2), currency: BASE_CURRENCY },
+  { id: 'tx-2', title: 'Rent', amount: 1200, type: 'expense', category: 'Housing', date: isoToday(3), currency: BASE_CURRENCY },
+  { id: 'tx-3', title: 'Groceries', amount: 186.4, type: 'expense', category: 'Food', date: isoToday(5), currency: BASE_CURRENCY },
+  { id: 'tx-4', title: 'Freelance project', amount: 500, type: 'income', category: 'Freelance', date: isoToday(6), currency: BASE_CURRENCY },
+  { id: 'tx-5', title: 'Transport', amount: 64.2, type: 'expense', category: 'Transport', date: isoToday(8), currency: BASE_CURRENCY },
+  { id: 'tx-6', title: 'Dining out', amount: 47.9, type: 'expense', category: 'Food', date: isoToday(10), currency: BASE_CURRENCY },
+  { id: 'tx-7', title: 'Utilities', amount: 95.5, type: 'expense', category: 'Utilities', date: isoToday(12), currency: BASE_CURRENCY },
 ];
 
 const seededGoals: Goal[] = [
-  { id: 'goal-1', title: 'Emergency fund', target: 5000, saved: 2150 },
-  { id: 'goal-2', title: 'Vacation', target: 1500, saved: 940 },
-  { id: 'goal-3', title: 'New laptop', target: 1200, saved: 1200 },
+  { id: 'goal-1', title: 'Emergency fund', target: 5000, saved: 2150, currency: BASE_CURRENCY },
+  { id: 'goal-2', title: 'Vacation', target: 1500, saved: 940, currency: BASE_CURRENCY },
+  { id: 'goal-3', title: 'New laptop', target: 1200, saved: 1200, currency: BASE_CURRENCY },
 ];
 
 export const useAppStore = create<AppState>()(
@@ -281,13 +320,14 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       user: null,
       hasOnboarded: false,
-      transactions: [],
-      goals: [],
+transactions: [],
+goals: [],
+budgets: [],
 
       theme: 'light',
       // The selected currency IS the currency stored amounts are denominated
       // in, so the default has to be the currency existing data was written in
-      // — otherwise a restored INR balance would be labelled and rendered as
+      // ΓÇö otherwise a restored INR balance would be labelled and rendered as
       // USD, a wrong number that looks right.
       currency: BASE_CURRENCY,
       language: 'en',
@@ -312,7 +352,7 @@ export const useAppStore = create<AppState>()(
         //
         // The saved preference only decides the code when there is no data to go
         // on: a brand new account has no rows, and the rows are what actually
-        // state their unit. Once records are in memory they are authoritative —
+        // state their unit. Once records are in memory they are authoritative ΓÇö
         // `hydrateFromSupabase` and the persisted-state `merge` both adopt the
         // currency the rows record, so this path never has to relabel anything.
         //
@@ -335,7 +375,7 @@ export const useAppStore = create<AppState>()(
           // Reaching this means hydration is still in flight, in which case it
           // reconciles to the rows' currency a moment later.
           console.warn(
-            `[currency] Deferring saved ${saved} for ${userId} — loaded data decides the currency (currently ${current.currency}).`,
+            `[currency] Deferring saved ${saved} for ${userId} ΓÇö loaded data decides the currency (currently ${current.currency}).`,
           );
         });
       },
@@ -356,13 +396,13 @@ export const useAppStore = create<AppState>()(
       },
       signOut: async () => {
         await authService.signOut();
-        console.log('[auth] Signed out — clearing transactions and goals.');
+        console.log('[auth] Signed out ΓÇö clearing transactions, goals, and budgets.');
         setAuthToken(null);
         lastHydratedUserId = null;
         activeHydrationUserId = null;
         // Forgetting the guard lets the same account recover normally next time.
         resetSessionCache({ forgetRecoveryGuard: true });
-        set({ user: null, transactions: [], goals: [], isLoadingData: false, dataLoadError: null });
+        set({ user: null, transactions: [], goals: [], budgets: [], isLoadingData: false, dataLoadError: null });
       },
       deleteAccount: async () => {
         const userId = get().user?.id;
@@ -384,6 +424,7 @@ export const useAppStore = create<AppState>()(
           user: null,
           transactions: [],
           goals: [],
+          budgets: [],
           isLoadingData: false,
           dataLoadError: null,
         });
@@ -403,14 +444,15 @@ export const useAppStore = create<AppState>()(
 
       addTransaction: (input) => {
         // New records are created in the CURRENTLY selected currency, so the
-        // value the user typed is stored as-is — no conversion on the way in.
+        // value the user typed is stored as-is ΓÇö no conversion on the way in.
         const currency = get().currency;
-        const record = { ...input, currency, amount: roundForCurrency(input.amount, currency) };
+        const normalizedDate = normalizeDate(input.date) ?? input.date;
+        const record = { ...input, currency, amount: roundForCurrency(input.amount, currency), date: normalizedDate };
         const tempId = uid('tx');
         set((s) => ({ transactions: [{ ...record, id: tempId }, ...s.transactions] }));
 
         const userId = get().user?.id;
-        if (!userId) return; // not signed in (e.g. demo mode) — local only
+        if (!userId) return; // not signed in (e.g. demo mode) ΓÇö local only
 
         supabase
           .from('transactions')
@@ -443,10 +485,11 @@ export const useAppStore = create<AppState>()(
         // re-stamping it on every patch keeps the column truthful even when only
         // the title changed. The stamp is applied AFTER the spread so a stray
         // `currency` in the patch cannot move the record off the selected
-        // currency without a conversion — that is `setCurrency`'s job alone.
+        // currency without a conversion ΓÇö that is `setCurrency`'s job alone.
         const currency = get().currency;
         const next: Partial<Omit<Transaction, 'id'>> = { ...patch, currency };
         if (patch.amount !== undefined) next.amount = roundForCurrency(patch.amount, currency);
+        if (patch.date !== undefined) next.date = normalizeDate(patch.date) ?? patch.date;
         set((s) => ({
           transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...next } : t)),
         }));
@@ -576,6 +619,134 @@ export const useAppStore = create<AppState>()(
           });
       },
 
+      addBudget: (input) => {
+        const currency = get().currency;
+        const record = {
+          ...input,
+          amount: roundForCurrency(input.amount, currency),
+        };
+
+        // Check for duplicate budget (same category + period) before inserting
+        const existingBudget = get().budgets.find(
+          (b) => b.category === record.category && b.period === record.period
+        );
+        if (existingBudget) {
+          // Return a specific error that the UI can display
+          return {
+            error: {
+              message: 'DUPLICATE_BUDGET',
+              category: record.category,
+              period: record.period,
+            },
+          };
+        }
+
+        const tempId = uid('budget');
+        set((s) => ({ budgets: [{ ...record, id: tempId }, ...s.budgets] }));
+
+        const userId = get().user?.id;
+        if (!userId) return;
+
+        supabase
+          .from('budgets')
+          .insert({
+            user_id: userId,
+            category: record.category,
+            amount: record.amount,
+            limit_amount: record.amount,
+            period: record.period,
+            start_date: record.startDate ?? null,
+            end_date: record.endDate ?? null,
+            rollover: record.rollover,
+          })
+          .select()
+          .single()
+          .then(({ data, error }: { data: any; error: any }) => {
+            if (error || !data) {
+              console.error('[addBudget] supabase error:', error?.message);
+              set((s) => ({ budgets: s.budgets.filter((b) => b.id !== tempId) }));
+              return;
+            }
+            set((s) => ({
+              budgets: s.budgets.map((b) => (b.id === tempId ? { ...b, id: data.id } : b)),
+            }));
+          });
+      },
+
+      updateBudget: (id, patch) => {
+        const currency = get().currency;
+        const next: Partial<Omit<Budget, 'id'>> = { ...patch };
+        if (patch.amount !== undefined) next.amount = roundForCurrency(patch.amount, currency);
+
+        // Check for duplicate budget (same category + period) excluding current budget
+        const checkCategory = patch.category ?? get().budgets.find((b) => b.id === id)?.category;
+        const checkPeriod = patch.period ?? get().budgets.find((b) => b.id === id)?.period;
+        if (checkCategory && checkPeriod) {
+          const existingBudget = get().budgets.find(
+            (b) => b.id !== id && b.category === checkCategory && b.period === checkPeriod
+          );
+          if (existingBudget) {
+            return {
+              error: {
+                message: 'DUPLICATE_BUDGET',
+                category: existingBudget.category,
+                period: existingBudget.period,
+              },
+            };
+          }
+        }
+
+        set((s) => ({
+          budgets: s.budgets.map((b) => (b.id === id ? { ...b, ...next } : b)),
+        }));
+
+        const userId = get().user?.id;
+        if (!userId) return;
+
+        const stored = get().budgets.find((b) => b.id === id);
+        if (!stored) return;
+
+        // Map camelCase patch fields to snake_case database columns
+        const supabaseUpdate: Record<string, any> = {
+          amount: stored.amount,
+          limit_amount: stored.amount,
+        };
+        if (patch.category !== undefined) supabaseUpdate.category = patch.category;
+        if (patch.amount !== undefined) {
+          supabaseUpdate.amount = next.amount;
+          supabaseUpdate.limit_amount = next.amount;
+        }
+        if (patch.period !== undefined) supabaseUpdate.period = patch.period;
+        if (patch.startDate !== undefined) supabaseUpdate.start_date = patch.startDate;
+        if (patch.endDate !== undefined) supabaseUpdate.end_date = patch.endDate;
+        if (patch.rollover !== undefined) supabaseUpdate.rollover = patch.rollover;
+
+        supabase
+          .from('budgets')
+          .update(supabaseUpdate)
+          .eq('id', id)
+          .eq('user_id', userId)
+          .then(({ error }: { error: any }) => {
+            if (error) console.error('[updateBudget] supabase error:', error.message);
+          });
+      },
+
+      deleteBudget: (id) => {
+        set((s) => ({ budgets: s.budgets.filter((b) => b.id !== id) }));
+
+        const userId = get().user?.id;
+        if (!userId) return;
+
+        supabase
+          .from('budgets')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId)
+          .then(({ error }: { error: any }) => {
+            if (error) console.error('[deleteBudget] supabase error:', error.message);
+          });
+      },
+
       resetDemoData: () => {
         const currency = get().currency;
         const round = (n: number) => roundForCurrency(n, currency);
@@ -591,16 +762,67 @@ export const useAppStore = create<AppState>()(
             saved: round(g.saved),
             currency,
           })),
+          budgets: [],
         });
       },
-      clearAllData: () => set({ transactions: [], goals: [] }),
+      clearLocalFinancialData: () => {
+        const userId = get().user?.id;
+        resetHydrationState();
+        if (userId) {
+          void removeCurrencyForUser(userId);
+        }
+        set({
+          transactions: [],
+          goals: [],
+          budgets: [],
+        });
+      },
+      clearAllData: async () => {
+        const userId = get().user?.id;
+        if (!userId) {
+          get().clearLocalFinancialData();
+          return;
+        }
+
+        const result = await authService.clearAllData();
+        if (!result.ok) {
+          console.error('[clearAllData] Cloud deletion failed:', result.error);
+          throw new Error(result.error ?? 'Failed to clear data on server');
+        }
+
+        // Cloud deletion succeeded - now seed default categories
+        const seedResult = await authService.seedDefaultCategories();
+        if (!seedResult.ok) {
+          console.error('[clearAllData] Category seeding failed:', seedResult.error);
+          // Don't throw - cloud deletion succeeded, categories can be seeded later
+        }
+
+        // Cloud deletion succeeded - now clear local financial state
+        resetHydrationState();
+        await removeCurrencyForUser(userId);
+        set({
+          transactions: [],
+          goals: [],
+          budgets: [],
+          // Preserve theme, language, onboarding state, profile identity
+          // Only reset financial preferences
+          currency: BASE_CURRENCY,
+          emergencyBuffer: null,
+          notifications: {
+            transactionAlerts: true,
+            budgetLimitWarnings: true,
+            weeklySummary: false,
+            goalReminders: true,
+          },
+        });
+      },
 
       hydrateFromSupabase: async (userId?: string, force = false) => {
         // 1. Resolve a session that is safe to send, escalating to a single
         //    token refresh if the persisted one is expired or was issued in the
         //    future. `ensureUsableSession()` is coalesced, so concurrent triggers
         //    (React StrictMode, `onAuthStateChange`, the boot check, the manual
-        //    refresh button) cost at most one refresh between them — and on the
+        //    refresh button) cost at most one refresh between them ΓÇö and on the
         //    happy path none at all, because the local read is free.
         //
         //    The id always comes from the session, never from the `userId`
@@ -612,10 +834,10 @@ export const useAppStore = create<AppState>()(
           setAuthToken(session.access_token);
         }
         if (!authedUserId) {
-          // Either genuinely signed out, or recovery failed — which purges the
+          // Either genuinely signed out, or recovery failed ΓÇö which purges the
           // persisted session and fires SIGNED_OUT, so the app lands on the
           // signed-out state instead of replaying a token the server rejects.
-          console.error('[auth] Transaction fetch skipped — no usable authenticated session.');
+          console.error('[auth] Transaction fetch skipped ΓÇö no usable authenticated session.');
           set({
             isLoadingData: false,
             dataLoadError: 'Your session could not be verified. Please sign in again.',
@@ -630,12 +852,12 @@ export const useAppStore = create<AppState>()(
         //    double-tapped refresh button from firing two REST calls.
         if (activeHydrationUserId === authedUserId) {
           if (__DEV__) {
-            console.log('[transactions] Fetch skipped — a request is already running.');
+            console.log('[transactions] Fetch skipped ΓÇö a request is already running.');
           }
           return;
         }
         if (!force && lastHydratedUserId === authedUserId) {
-          if (__DEV__) console.log('[transactions] Fetch skipped — already hydrated.');
+          if (__DEV__) console.log('[transactions] Fetch skipped ΓÇö already hydrated.');
           return;
         }
 
@@ -658,7 +880,7 @@ export const useAppStore = create<AppState>()(
           const authFailure = pickAuthFailure(queries);
           if (authFailure) {
             console.warn(
-              `[${authFailure.label}] auth error on fetch — refreshing session and retrying once:`,
+              `[${authFailure.label}] auth error on fetch ΓÇö refreshing session and retrying once:`,
               authFailure.error.message,
             );
             const recovered = await recoverSession(authedUserId);
@@ -672,21 +894,22 @@ export const useAppStore = create<AppState>()(
               console.error(
                 `[auth] Token refresh did not yield a usable session (${
                   recovered.ok ? 'wrong user' : recovered.reason
-                }) — not retrying.`,
+                }) ΓÇö not retrying.`,
               );
             }
           }
 
-          const { txResult, goalResult } = queries;
+          const { txResult, goalResult, budgetResult } = queries;
           logQueryResult('transactions', txResult.error, txResult.data?.length ?? 0);
           logQueryResult('goals', goalResult.error, goalResult.data?.length ?? 0);
+          logQueryResult('budgets', budgetResult.error, budgetResult.data?.length ?? 0);
 
           // Classify the outcome. Auth and network failures get different
           // messages and different follow-ups: an auth failure that survived the
           // retry means the session is unusable, while a network failure says
           // nothing about the session and must not tear the user out.
           const authRejected = pickAuthFailure(queries) !== null;
-          const networkFailed = isNetworkError(txResult.error) || isNetworkError(goalResult.error);
+          const networkFailed = isNetworkError(txResult.error) || isNetworkError(goalResult.error) || isNetworkError(budgetResult.error);
           const failed = Boolean(txResult.error) || authRejected;
 
           const transactions = (txResult.data ?? []).map((t: any) => ({
@@ -695,7 +918,7 @@ export const useAppStore = create<AppState>()(
             amount: toNumber(t.amount),
             type: t.type,
             category: t.category,
-            date: t.date,
+            date: normalizeDate(t.date) ?? t.date,
             // A row written before the currency column existed is INR; every
             // other row states its own currency, which the currency change
             // rewrites along with the amount.
@@ -708,6 +931,16 @@ export const useAppStore = create<AppState>()(
             saved: toNumber(g.saved),
             deadline: g.deadline ?? undefined,
             currency: recordCurrency(g),
+          }));
+          const budgets = (budgetResult.data ?? []).map((b: any) => ({
+            id: b.id,
+            category: b.category,
+            amount: toNumber(b.amount ?? b.limit_amount ?? 0),
+            period: b.period,
+            startDate: b.start_date ?? undefined,
+            endDate: b.end_date ?? undefined,
+            rollover: Boolean(b.rollover),
+            currency: recordCurrency(b),
           }));
 
           // The rows are authoritative about their own unit. After a currency
@@ -725,7 +958,7 @@ export const useAppStore = create<AppState>()(
             currency = reconciled.currency;
             if (reconciled.kind === 'ambiguous') {
               console.warn(
-                `[currency] Loaded rows disagree (${reconciled.mixed.join(', ')}) — showing ${currency}. ` +
+                `[currency] Loaded rows disagree (${reconciled.mixed.join(', ')}) ΓÇö showing ${currency}. ` +
                   'Switching currency normalizes every row onto one code.',
               );
             }
@@ -734,6 +967,7 @@ export const useAppStore = create<AppState>()(
           set({
             transactions,
             goals,
+            budgets,
             currency,
             isLoadingData: false,
             dataLoadError: failed
@@ -778,6 +1012,7 @@ export const useAppStore = create<AppState>()(
         hasOnboarded: s.hasOnboarded,
         transactions: s.transactions,
         goals: s.goals,
+        budgets: s.budgets,
         theme: s.theme,
         currency: s.currency,
         language: s.language,
@@ -835,7 +1070,7 @@ export const useAppStore = create<AppState>()(
  *      what makes a repeated tap a no-op instead of a second conversion;
  *   3. make sure a usable rate table exists;
  *   4. plan the conversion purely, which fails as a unit if any value cannot be
- *      converted — so a missing rate never produces a half-converted data set;
+ *      converted ΓÇö so a missing rate never produces a half-converted data set;
  *   5. persist the converted rows to Supabase in ONE transaction, so a failure
  *      leaves the database exactly as it was;
  *   6. only then commit the new records AND the preference in a single store
@@ -890,15 +1125,19 @@ async function runCurrencyChange(
         return { ok: false, currency: from, error: 'busy' };
       }
 
-      const { transactions, goals, emergencyBuffer } = get();
-      const plan = planCurrencyChange({ transactions, goals, emergencyBuffer }, from, next, table);
+      const { transactions, goals, budgets, emergencyBuffer } = get();
+      const plan = planCurrencyChange({ transactions, goals, budgets, emergencyBuffer }, from, next, table);
       if (!plan.ok) {
         return { ok: false, currency: from, error: plan.error };
       }
 
       if (userId) {
-        const persisted = await persistConvertedAmounts(plan);
-        if (!persisted.ok) {
+const persisted = await persistConvertedAmounts(
+  plan,
+  transactions,
+  goals,
+  budgets,
+);        if (!persisted.ok) {
           // The database rolled the whole conversion back, so the previous currency
           // and the original amounts are both still intact. Nothing is committed
           // locally and the preference stays put.
@@ -907,7 +1146,7 @@ async function runCurrencyChange(
           // currency we planned from), so local state is now describing something
           // that is not on the server. Re-read it rather than trusting either side.
           if (persisted.stale && get().user?.id === userId) {
-            console.error('[setCurrency] data changed concurrently — re-syncing from the server.');
+            console.error('[setCurrency] data changed concurrently ΓÇö re-syncing from the server.');
             await get().hydrateFromSupabase(userId, true);
           }
           return { ok: false, currency: from, error: 'persist-failed' };
@@ -928,6 +1167,7 @@ async function runCurrencyChange(
       set({
         transactions: plan.transactions,
         goals: plan.goals,
+        budgets: plan.budgets,
         emergencyBuffer: plan.emergencyBuffer,
         currency: plan.to,
       });
@@ -939,7 +1179,7 @@ async function runCurrencyChange(
       return {
         ok: true,
         currency: plan.to,
-        converted: plan.transactions.length + plan.goals.length,
+        converted: plan.transactions.length + plan.goals.length + plan.budgets.length,
       };
     } catch (e) {
       // A thrown network error (rate fetch offline, RPC unreachable) must not
@@ -978,11 +1218,17 @@ async function runCurrencyChange(
  * and RLS (migration 0001) still applies because the function is SECURITY
  * INVOKER.
  */
-async function persistConvertedAmounts(plan: {
-  to: string;
-  transactions: Transaction[];
-  goals: Goal[];
-}): Promise<{ ok: boolean; stale: boolean }> {
+async function persistConvertedAmounts(
+  plan: {
+    to: string;
+    transactions: Transaction[];
+    goals: Goal[];
+    budgets: Budget[];
+  },
+  originalTransactions: Transaction[],
+  originalGoals: Goal[],
+  originalBudgets: Budget[],
+): Promise<{ ok: boolean; stale: boolean }> {
   // A locally-created record that never got a server id cannot be written back.
   // It is left out of the request so the database's row count still matches what
   // was sent; the local value is still converted, and it will be written under
@@ -990,26 +1236,59 @@ async function persistConvertedAmounts(plan: {
   const persisted = <T extends { id: string }>(rows: T[]): T[] =>
     rows.filter((r) => typeof r.id === 'string' && r.id !== '');
 
-  const goals = persisted(plan.goals).map((g) => ({
-    id: g.id,
-    from: recordCurrency(g),
-    target: g.target,
-    saved: g.saved,
-  }));
-  const transactions = persisted(plan.transactions).map((t) => ({
-    id: t.id,
-    from: recordCurrency(t),
-    amount: t.amount,
-  }));
+  const originalGoalCurrencies = new Map(
+  originalGoals.map((g) => [g.id, recordCurrency(g)]),
+  );
+
+const originalTransactionCurrencies = new Map(
+  originalTransactions.map((t) => [t.id, recordCurrency(t)]),
+);
+
+const originalBudgetCurrencies = new Map(
+  originalBudgets.map((b) => [b.id, recordCurrency(b)]),
+);
+
+const goals = persisted(plan.goals).map((g) => ({
+  id: g.id,
+  from: originalGoalCurrencies.get(g.id) ?? BASE_CURRENCY,
+  target: g.target,
+  saved: g.saved,
+}));
+
+const transactions = persisted(plan.transactions).map((t) => ({
+  id: t.id,
+  from: originalTransactionCurrencies.get(t.id) ?? BASE_CURRENCY,
+  amount: t.amount,
+}));
+
+const budgets = persisted(plan.budgets).map((b) => ({
+  id: b.id,
+  from: originalBudgetCurrencies.get(b.id) ?? BASE_CURRENCY,
+  amount: b.amount,
+}));
 
   // Nothing on the server yet (signed out, or every row is still local): there is
   // no database state to move, so the local commit below is the whole change.
-  if (goals.length === 0 && transactions.length === 0) return { ok: true, stale: false };
+  if (goals.length === 0 && transactions.length === 0 && budgets.length === 0) return { ok: true, stale: false };
 
-  const { error } = await supabase.rpc('convert_currency_data', {
+ console.log(
+  '[currency-rpc] payload',
+  JSON.stringify(
+    {
+      to: plan.to,
+      goals,
+      transactions,
+      budgets,
+    },
+    null,
+    2
+  )
+);
+const { error } = await supabase.rpc('convert_currency_data', {
     p_to: plan.to,
     p_goals: goals,
     p_transactions: transactions,
+    p_budgets: budgets,
   });
   if (error) {
     // 40001 is the row count mismatch the function raises, meaning the data moved

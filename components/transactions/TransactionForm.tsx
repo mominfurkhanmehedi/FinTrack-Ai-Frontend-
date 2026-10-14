@@ -9,6 +9,44 @@ import { useI18n } from '../../i18n';
 import { TransactionType } from '../../types';
 import { isoToday } from '../../utils';
 
+/**
+ * Convert various date formats to YYYY-MM-DD for consistent storage.
+ * Accepts:
+ *   - DD/MM/YYYY or D/M/YYYY (user-typed, e.g. "1/3/2026" → "2026-03-01")
+ *   - YYYY-MM-DD (already ISO, e.g. "2026-03-01" → "2026-03-01")
+ *   - Date objects (from native pickers, converted using LOCAL components)
+ * Returns undefined for empty/invalid dates.
+ */
+const toIsoDate = (value: string | Date | undefined | null): string | undefined => {
+  if (!value) return undefined;
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parts = trimmed.split('/');
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parseInt(parts[2], 10);
+    if (Number.isInteger(day) && Number.isInteger(month) && Number.isInteger(year)) {
+      if (month >= 1 && month <= 12 && year >= 1000 && year <= 9999) {
+        const daysInMonth = new Date(year, month, 0).getDate();
+        if (day >= 1 && day <= daysInMonth) {
+          const mm = String(month).padStart(2, '0');
+          const dd = String(day).padStart(2, '0');
+          return `${year}-${mm}-${dd}`;
+        }
+      }
+    }
+  }
+  return undefined;
+};
+
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 // `shadow*` style props are deprecated on web — use boxShadow there while
@@ -33,7 +71,7 @@ const iconBadgeShadow = Platform.select({
   },
 });
 
-type CategoryKey = 'salary' | 'freelance' | 'housing' | 'food' | 'transport' | 'utilities' | 'other';
+export type CategoryKey = 'salary' | 'freelance' | 'housing' | 'food' | 'transport' | 'utilities' | 'other';
 
 export const CATEGORY_KEYS: Record<string, CategoryKey> = {
   Salary: 'salary',
@@ -45,7 +83,15 @@ export const CATEGORY_KEYS: Record<string, CategoryKey> = {
   Other: 'other',
 };
 
-interface Category {
+/** All category labels in the canonical form used for storage. */
+export const CATEGORY_LABELS: CategoryKey[] = ['salary', 'freelance', 'housing', 'food', 'transport', 'utilities', 'other'];
+
+/** Maps canonical key to translated label for display. */
+export function getCategoryLabel(key: CategoryKey, t: (key: string, params?: Record<string, string | number>) => string): string {
+  return t(`categories.${key}.label` as any);
+}
+
+export interface Category {
   key: CategoryKey;
   label: string;
   description: string;
@@ -55,7 +101,7 @@ interface Category {
   border: string;
 }
 
-const CATEGORIES: Category[] = [
+export const CATEGORIES: Category[] = [
   {
     key: 'salary',
     label: 'Salary',
@@ -188,7 +234,7 @@ export function TransactionForm({
   const activeCategoryLabel =
     category === 'Savings'
       ? t('categories.savings')
-      : t(`categories.${activeCat?.key ?? 'other'}.label`);
+      : getCategoryLabel((activeCat?.key ?? 'other') as CategoryKey, t as (key: string) => string);
   const activeCategoryDescription = activeCat
     ? t(`categories.${activeCat.key}.description`)
     : t('categories.selectedCategory');
@@ -217,7 +263,8 @@ export function TransactionForm({
       return;
     }
     setAmountError(null);
-    onSubmit({ title, amount: String(stored), type, category, date });
+    const normalizedDate = toIsoDate(date) ?? date;
+    onSubmit({ title, amount: String(stored), type, category, date: normalizedDate });
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -234,7 +281,13 @@ export function TransactionForm({
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.back()}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.dismiss();
+                }
+              }}
               hitSlop={12}
             >
               <Text className="text-brand-600 font-semibold text-sm">
@@ -307,7 +360,7 @@ export function TransactionForm({
                     marginBottom: 3,
                   }}
                 >
-                  {t(`categories.${cat.key}.label`)}
+                  {getCategoryLabel(cat.key, t as (key: string) => string)}
                 </Text>
                 <Text
                   style={{
@@ -371,7 +424,13 @@ export function TransactionForm({
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.dismiss();
+              }
+            }}
             hitSlop={12}
           >
             <Text

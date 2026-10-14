@@ -27,7 +27,11 @@ export default function ThemePicker() {
         selected={theme}
         onSelect={(key) => {
           setTheme(key as ThemeMode);
-          router.back();
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/settings');
+          }
         }}
       />
     </SettingsScreen>

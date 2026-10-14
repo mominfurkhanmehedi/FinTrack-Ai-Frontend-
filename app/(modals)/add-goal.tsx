@@ -21,6 +21,7 @@ export default function AddGoal() {
   const addGoal = useAppStore((s) => s.addGoal);
   const { symbol, toBase } = useMoney();
   const { t } = useI18n();
+  const currency = useAppStore((s) => s.currency);
   const [title, setTitle] = useState('');
   const [target, setTarget] = useState('');
 
@@ -37,8 +38,12 @@ export default function AddGoal() {
 
   const submit = () => {
     if (storedTarget === null) return;
-    addGoal({ title, target: storedTarget, saved: 0 });
-    router.back();
+    addGoal({ title, target: storedTarget, saved: 0, currency });
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.dismiss();
+    }
   };
 
   return (
@@ -46,7 +51,13 @@ export default function AddGoal() {
       <ScrollView className="flex-1" contentContainerClassName="px-6 pt-6 pb-10">
         <View className="flex-row items-center justify-between mb-6">
           <Text className="text-2xl font-bold text-gray-900">{t('budget.addGoalTitle')}</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.dismiss();
+            }
+          }}>
             <Text className="text-brand-600 font-semibold">{t('budget.close')}</Text>
           </Pressable>
         </View>

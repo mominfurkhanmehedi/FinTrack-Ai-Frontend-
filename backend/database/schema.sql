@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
   color TEXT NOT NULL DEFAULT '#6366F1',
   icon TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(user_id, name, type)
 );
 
@@ -63,9 +64,12 @@ CREATE TABLE IF NOT EXISTS public.budgets (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   category TEXT NOT NULL,
   amount NUMERIC NOT NULL,
+  limit_amount NUMERIC NOT NULL DEFAULT 0,
+  rollover BOOLEAN NOT NULL DEFAULT FALSE,
   period TEXT NOT NULL CHECK (period IN ('weekly', 'monthly', 'yearly')) DEFAULT 'monthly',
   start_date DATE NOT NULL,
   end_date DATE,
+  currency TEXT NOT NULL DEFAULT 'INR',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -79,7 +83,8 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   type TEXT NOT NULL DEFAULT 'info',
   data JSONB NOT NULL DEFAULT '{}'::jsonb,
   read BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Indexes for performance
@@ -88,6 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user_type ON public.transactions(use
 CREATE INDEX IF NOT EXISTS idx_transactions_user_category ON public.transactions(user_id, category);
 CREATE INDEX IF NOT EXISTS idx_goals_user ON public.goals(user_id);
 CREATE INDEX IF NOT EXISTS idx_budgets_user ON public.budgets(user_id);
+CREATE INDEX IF NOT EXISTS budgets_user_currency_idx ON public.budgets (user_id, currency);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON public.notifications(user_id, read);
 CREATE INDEX IF NOT EXISTS idx_categories_user_type ON public.categories(user_id, type);
 
@@ -194,6 +200,12 @@ BEGIN
   ) THEN
     ALTER TABLE public.profiles ADD CONSTRAINT profiles_currency_supported CHECK (currency IN ('INR', 'USD', 'EUR', 'GBP', 'JPY', 'AED', 'SGD', 'CAD', 'AUD', 'CHF'));
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'budgets_currency_supported' AND conrelid = 'public.budgets'::regclass
+  ) THEN
+    ALTER TABLE public.budgets ADD CONSTRAINT budgets_currency_supported CHECK (currency IN ('INR', 'USD', 'EUR', 'GBP', 'JPY', 'AED', 'SGD', 'CAD', 'AUD', 'CHF'));
+  END IF;
 END $$;
 
 -- Trigger for updated_at
@@ -216,3 +228,14 @@ CREATE TRIGGER update_goals_updated_at BEFORE UPDATE ON public.goals FOR EACH RO
 
 DROP TRIGGER IF EXISTS update_budgets_updated_at ON public.budgets;
 CREATE TRIGGER update_budgets_updated_at BEFORE UPDATE ON public.budgets FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Categories trigger
+DROP TRIGGER IF EXISTS update_categories_updated_at ON public.categories;
+CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON public.categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Notifications trigger
+DROP TRIGGER IF EXISTS update_notifications_updated_at ON public.notifications;
+CREATE TRIGGER update_notifications_updated_at BEFORE UPDATE ON public.notifications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Prerequisite: pg_net extension must be enabled for migration 0004 (fetch_exchange_rates)
+-- Run in Supabase SQL editor before applying migrations: CREATE EXTENSION IF NOT EXISTS pg_net;

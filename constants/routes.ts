@@ -21,6 +21,8 @@ export const ROUTES = {
     ADD_TRANSACTION: '/add-transaction',
     EDIT_TRANSACTION: '/edit-transaction',
     ADD_GOAL: '/add-goal',
+    ADD_BUDGET: '/add-budget',
+    EDIT_BUDGET: '/edit-budget',
     ADD_SAVING: '/add-saving',
     TRANSACTION_DETAIL: '/transaction-detail',
     SAFE_TO_SPEND: '/safe-to-spend',

@@ -1,6 +1,7 @@
 ﻿import { AuthResult, User } from '../types';
 import { resetSessionCache } from './session';
 import { supabase } from './supabase';
+import { api } from './axios';
 
 /**
  * Supabase-backed auth service.
@@ -164,6 +165,45 @@ export const authService = {
     } catch (error) {
       console.error('[deleteAccount] Error:', error);
       return { ok: false, error: 'An error occurred while deleting your account.' };
+    }
+  },
+
+  /** Clear all application data for the current user (keeps the account). */
+  async clearAllData(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        console.error('[clearAllData] no active session:', userError?.message ?? 'no user');
+        return { ok: false, error: 'No active session.' };
+      }
+
+      const { error } = await supabase.rpc('clear_user_data');
+      if (error) {
+        console.error('[clearAllData] RPC failed:', error.message);
+        return { ok: false, error: 'Failed to clear data on server.' };
+      }
+
+      return { ok: true };
+    } catch (error) {
+      console.error('[clearAllData] Error:', error);
+      return { ok: false, error: 'An error occurred while clearing your data.' };
+    }
+  },
+
+  /** Seed default categories for the current user (after clear_all_data). */
+  async seedDefaultCategories(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user?.id) {
+        console.error('[seedDefaultCategories] no active session:', userError?.message ?? 'no user');
+        return { ok: false, error: 'No active session.' };
+      }
+
+      await api.post('/categories/seed');
+      return { ok: true };
+    } catch (error) {
+      console.error('[seedDefaultCategories] Error:', error);
+      return { ok: false, error: 'An error occurred while seeding categories.' };
     }
   },
 };

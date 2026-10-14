@@ -27,7 +27,11 @@ export default function LanguagePicker() {
         selected={language}
         onSelect={(key) => {
           setLanguage(key);
-          router.back();
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/settings');
+          }
         }}
       />
     </SettingsScreen>

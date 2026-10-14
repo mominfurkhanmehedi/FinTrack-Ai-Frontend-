@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { PickerList, SettingsScreen } from '../../components/settings';
-import { Card } from '../../components/ui';
+import { Card, ConfirmationSheet } from '../../components/ui';
 import { useMoney } from '../../hooks/useMoney';
 import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
@@ -54,6 +54,8 @@ export default function CurrencyPicker() {
   const { t, locale } = useI18n();
   const { ratesStatus, ratesUpdatedAt, ratesSource, refreshRates, canConvert } = useMoney();
   const [converting, setConverting] = useState<string | null>(null);
+  const [pendingCurrency, setPendingCurrency] = useState<string | null>(null);
+  const [showError, setShowError] = useState<string | null>(null);
 
   const updatedLabel = ratesUpdatedAt
     ? new Date(ratesUpdatedAt).toLocaleString(locale, {
@@ -102,43 +104,63 @@ export default function CurrencyPicker() {
   }[ratesStatus];
 
   const applyCurrency = async (next: string) => {
+    console.log('[currency-debug] applyCurrency START', { next });
     setConverting(next);
     try {
+      console.log('[currency-debug] calling setCurrency (store)');
       const result = await setCurrency(next);
+      console.log('[currency-debug] setCurrency DONE', { result });
       if (result.ok) {
-        router.back();
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/settings');
+        }
         return;
       }
       // The previous currency is still in effect — say why, and say what the user
       // would have switched to, so the screen is not left looking like it worked.
-      Alert.alert(
-        t('pickers.currencyChangeTitle'),
-        t(CURRENCY_ERROR_KEYS[result.error ?? 'persist-failed'], { from: currency, to: next }),
-      );
+      setShowError(t(CURRENCY_ERROR_KEYS[result.error ?? 'persist-failed'], { from: currency, to: next }));
+    } catch (e) {
+      console.error('[currency-debug] applyCurrency CAUGHT ERROR', e);
+      throw e;
     } finally {
       // Always clear the busy state, even if `setCurrency` rejects, so the screen
       // never gets stuck showing a conversion that already ended.
       setConverting(null);
     }
+    console.log('[currency-debug] applyCurrency END');
   };
 
   const onSelect = (next: string) => {
     if (next === currency || converting) {
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/settings');
+      }
       return;
     }
-    Alert.alert(
-      t('pickers.currencyChangeTitle'),
-      t('pickers.currencyChangeMessage', { from: currency, to: next }),
-      [
-        { text: t('settings.confirmation.cancel'), style: 'cancel' },
-        {
-          text: t('settings.confirmation.confirm'),
-          style: 'destructive',
-          onPress: () => void applyCurrency(next),
-        },
-      ],
-    );
+    setPendingCurrency(next);
+  };
+
+  const handleConfirmChange = async () => {
+    console.log('[currency-debug] handleConfirmChange START', { pendingCurrency });
+    if (pendingCurrency) {
+      console.log('[currency-debug] calling applyCurrency', { pendingCurrency });
+      await applyCurrency(pendingCurrency);
+      console.log('[currency-debug] applyCurrency DONE');
+      setPendingCurrency(null);
+    }
+    console.log('[currency-debug] handleConfirmChange END');
+  };
+
+  const handleCancelChange = () => {
+    setPendingCurrency(null);
+  };
+
+  const handleDismissError = () => {
+    setShowError(null);
   };
 
   return (
@@ -219,6 +241,28 @@ export default function CurrencyPicker() {
           </Text>
         </Pressable>
       </Card>
+
+      <ConfirmationSheet
+        visible={pendingCurrency !== null}
+        title={t('pickers.currencyChangeTitle')}
+        message={t('pickers.currencyChangeMessage', { from: currency, to: pendingCurrency ?? '' })}
+        confirmText={t('settings.confirmation.confirm')}
+        cancelText={t('settings.confirmation.cancel')}
+        variant="danger"
+        onConfirm={handleConfirmChange}
+        onCancel={handleCancelChange}
+      />
+
+      <ConfirmationSheet
+        visible={showError !== null}
+        title={t('pickers.currencyChangeTitle')}
+        message={showError ?? ''}
+        confirmText={t('settings.confirmation.confirm')}
+        cancelText=""
+        variant="primary"
+        onConfirm={handleDismissError}
+        onCancel={handleDismissError}
+      />
     </SettingsScreen>
   );
 }

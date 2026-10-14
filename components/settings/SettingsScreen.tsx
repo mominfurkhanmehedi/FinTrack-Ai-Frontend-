@@ -31,7 +31,13 @@ export function SettingsScreen({
       <View className="px-4 pt-2 pb-3 flex-row items-center justify-between bg-gray-50 dark:bg-gray-950">
         <View className="flex-row items-center gap-3 flex-1">
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/settings');
+              }
+            }}
             accessibilityRole="button"
             accessibilityLabel={t('common.goBackLabel')}
             hitSlop={8}

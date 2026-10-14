@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Kannada (ಕನ್ನಡ) dictionary — complete mirror of the English shape.
  * Every key ships a real translation; no English fallbacks.
  */
@@ -80,7 +80,7 @@ export const kn = {
     addExpense: 'ಖರ್ಚು ಸೇರಿಸಿ',
     addGoal: 'ಗುರಿ ಸೇರಿಸಿ',
     last7Days: 'ಕಳೆದ 7 ದಿನಗಳು',
-    totalSpent: 'ಒಟ್ಟು ಖರ್ಚು',
+totalSpent: 'ಒಟ್ಟು ಖರ್ಚು',
     spent: 'ಖರ್ಚಾಗಿದೆ',
     noSpending: 'ಖರ್ಚಿಲ್ಲ',
     noSpendingRecorded: 'ಯಾವುದೇ ಖರ್ಚು ದಾಖಲಾಗಿಲ್ಲ',
@@ -128,8 +128,8 @@ export const kn = {
       amount: 'ಮೊತ್ತ',
       title: 'ಶೀರ್ಷಿಕೆ',
       titlePlaceholder: 'ಉದಾ: ದಿನಸಿ',
-      date: 'ದಿನಾಂಕ (yyyy-mm-dd)',
-      datePlaceholder: '2026-08-17',
+      date: 'ದಿನಾಂಕ (dd/mm/yyyy)',
+      datePlaceholder: '17/08/2026',
       saveTransaction: 'ವಹಿವಾಟು ಉಳಿಸಿ',
       updateTransaction: 'ವಹಿವಾಟು ನವೀಕರಿಸಿ',
       invalidAmount: 'ಸರಿಯಾದ ಹಣಕಾಸನ್ನು ನಮೂದಿಸಿ.',
@@ -150,8 +150,9 @@ export const kn = {
 
   budget: {
     screenTitle: 'ಬಜೆಟ್',
-    screenSubtitle: 'ನಿಮ್ಮ ಉಳಿತಾಯ ಗುರಿಗಳನ್ನು ಟ್ರ್ಯಾಕ್ ಮಾಡಿ',
+    screenSubtitle: 'ನಿಮ್ಮ ಬಜೆಟ್‌ಗಳು ಮತ್ತು ಉಳಿತಾಯ ಗುರಿಗಳನ್ನು ಟ್ರ್ಯಾಕ್ ಮಾಡಿ',
     newGoal: 'ಹೊಸ ಗುರಿ',
+    newBudget: 'ಹೊಸ ಬಜೆಟ್',
     completed: 'ಪೂರ್ಣಗೊಂಡಿದೆ 🎉',
     inProgress: 'ಪ್ರಗತಿಯಲ್ಲಿದೆ',
     of: (p: { value: string | number }) => `${p.value}ರಲ್ಲಿ`,
@@ -159,13 +160,40 @@ export const kn = {
     addSaving: 'ಉಳಿತಾಯ ಸೇರಿಸಿ',
     noGoalsTitle: 'ಇನ್ನೂ ಯಾವುದೇ ಗುರಿಗಳಿಲ್ಲ',
     noGoalsMessage: 'ಏನನ್ನಾದರೂ ಉಳಿಸಲು "ಹೊಸ ಗುರಿ" ಒತ್ತಿ.',
+    noBudgetsTitle: 'ಇನ್ನೂ ಯಾವುದೇ ಬಜೆಟ್‌ಗಳು ಇಲ್ಲ',
+    noBudgetsMessage: 'ಕिसी ವರ್ಗಕ್ಕಾಗಿ ಬಜೆಟ್ ರಚಿಸಲು "ಹೊಸ ಬಜೆಟ್" ಒತ್ತಿ.',
     addGoalTitle: 'ಹೊಸ ಗುರಿ',
+    addBudgetTitle: 'ಹೊಸ ಬಜೆಟ್',
     close: 'ಮುಚ್ಚಿ',
     goalTitle: 'ಗುರಿಯ ಶೀರ್ಷಿಕೆ',
     goalTitlePlaceholder: 'ಉದಾ: ತುರ್ತು ನಿಧಿ',
     targetAmount: 'ಗುರಿ ಮೊತ್ತ',
     createGoal: 'ಗುರಿ ರಚಿಸಿ',
     enterTargetError: '0ಕ್ಕಿಂತ ಹೆಚ್ಚಿನ ಗುರಿ ಮೊತ್ತವನ್ನು ನಮೂದಿಸಿ.',
+    category: 'ವರ್ಗ',
+    categoryPlaceholder: 'ಉದಾ: ಆಹಾರ',
+    amount: 'ಮೊತ್ತ',
+    period: 'ಕಾಲಾವಧಿ: {period}',
+    periodWeekly: 'ಸಪ್ತಾಹಿಕ',
+    periodMonthly: 'ಮಾಸಿಕ',
+    periodYearly: 'ವಾರ್ಷಿಕ',
+    startDate: 'ಆರಂಭ ದಿನಾಂಕ (dd/mm/yyyy)',
+    endDate: 'ಅಂತಿಮ ದಿನಾಂಕ (dd/mm/yyyy)',
+datePlaceholder: '01/01/2026',
+    rolloverOn: 'ರೋಲ್‌ಓವರ್ ಆನ್',
+    rolloverOff: 'ರೋಲ್‌ಓವರ್_OF',
+    createBudget: 'ಬಜೆಟ್ ರಚಿಸಿ',
+    updateBudget: 'ಬಜೆಟ್ ಅಪ್‌ಡೇಟ್ ಮಾಡಿ',
+    editBudgetTitle: 'ಬಜೆಟ್ ಸಂಪಾದಿಸಿ',
+enterAmountError: '0ಕ್ಕಿಂತ ಹೆಚ್ಚು ಮೊತ್ತವನ್ನು ನಮೂದಿಸಿ.',
+    spent: (p: { value: string | number }) => `ಖರ್ಚಾಗಿದೆ: ${p.value}`,
+    remaining: (p: { value: string | number }) => `ಶೇಷ: ${p.value}`,
+    overBudget: (p: { value: string | number }) => `ಬಜೆಟ್ ಮೀರಿದೆ: ${p.value}`,
+    rolloverEnabled: 'ರೋಲ್‌ಓವರ್ ಸಕ್ರಿಯ',
+    budgets: (p: { count: string | number }) => `ಬಜೆಟ್‌ಗಳು (${p.count})`,
+    goals: (p: { count: string | number }) => `ಗುರಿಗಳು (${p.count})`,
+    duplicateBudget: (p: { category: string; period: string }) =>
+      `ಒಂದು ${p.period} ಬಜೆಟ್ ${p.category}ಗಾಗಿ ಈಗಾಗಲೇ ಇದೆ. ದಯವಿಟ್ಟು ਮौजूदा ಬಜೆಟ್ ಅನ್ನು ಸಂಪಾದಿಸಿ.`,
   },
 
   insights: {
@@ -423,7 +451,10 @@ export const kn = {
     resetDemoTitle: 'ಡೆಮೊ ಡೇಟಾ ಮರುಹೊಂದಿಸಿ',
     resetDemoMessage: 'ಮಾದರಿ ವಹಿವಾಟುಗಳು ಮತ್ತು ಗುರಿಗಳನ್ನು ಪುನಃಸ್ಥಾಪಿಸುವುದೇ?',
     clearAllTitle: 'ಎಲ್ಲಾ ಡೇಟಾ ಅಳಿಸಿ',
-    clearAllMessage: 'ಪ್ರತಿಯೊಂದು ವಹಿವಾಟು ಮತ್ತು ಗುರಿಯನ್ನು ಅಳಿಸುವುದೇ?',
+    clearAllMessage: 'ಪ್ರತಿಯೊಂದು ವಹಿವಾಟು, ಗುರಿ, ಬಜೆಟ್ ಮತ್ತು ಅಧಿಸೂಚನೆಗಳನ್ನು ಅಳಿಸುವುದೇ?',
+    clearAllSuccessTitle: 'ಡೇಟಾ ಅಳಿಸಲಾಗಿದೆ',
+    clearAllSuccess: 'ನಿಮ್ಮ ಎಲ್ಲಾ ಆರ್ಥಿಕ ಡೇಟಾ ಅಳಿಸಲಾಗಿದೆ.',
+    clearAllErrorTitle: 'ಅಳಿಸುವذَا ವಿಫಲ',
     signOutTitle: 'ಸೈನ್ ಔಟ್',
     signOutMessage: 'ನಿಮ್ಮನ್ನು ಲಾಗಿನ್ ಪರದೆಗೆ ಹಿಂತಿರುಗಿಸಲಾಗುತ್ತದೆ.',
   },
@@ -695,3 +726,4 @@ export const kn = {
     generic: 'ನಿಮ್ಮ ಡೇಟಾವನ್ನು ಲೋಡ್ ಮಾಡುವಾಗ ಏನೋ ತಪ್ಪಾಗಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
   },
 };
+

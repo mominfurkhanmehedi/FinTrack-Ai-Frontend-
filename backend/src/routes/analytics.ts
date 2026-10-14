@@ -50,12 +50,34 @@ analyticsRoutes.get('/overview', asyncHandler(async (req: Request, res: Response
   const { start: monthStart, end: monthEnd } = getMonthRange(now);
   const { start: weekStart, end: weekEnd } = getWeekRange(now);
 
-  const [{ data: monthTxs }, { data: weekTxs }, { data: allTxs }, { data: goals }] = await Promise.all([
+  const [monthResult, weekResult, allResult, goalsResult] = await Promise.all([
     client.from('transactions').select('*').eq('user_id', userId).gte('date', monthStart).lte('date', monthEnd),
     client.from('transactions').select('*').eq('user_id', userId).gte('date', weekStart).lte('date', weekEnd),
     client.from('transactions').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(1000),
     client.from('goals').select('*').eq('user_id', userId),
   ]);
+
+  if (monthResult.error) {
+    console.error('[analytics/overview] month transactions error:', monthResult.error.message);
+    throw ApiError.internal('Failed to fetch overview data');
+  }
+  if (weekResult.error) {
+    console.error('[analytics/overview] week transactions error:', weekResult.error.message);
+    throw ApiError.internal('Failed to fetch overview data');
+  }
+  if (allResult.error) {
+    console.error('[analytics/overview] all transactions error:', allResult.error.message);
+    throw ApiError.internal('Failed to fetch overview data');
+  }
+  if (goalsResult.error) {
+    console.error('[analytics/overview] goals error:', goalsResult.error.message);
+    throw ApiError.internal('Failed to fetch overview data');
+  }
+
+  const monthTxs = monthResult.data;
+  const weekTxs = weekResult.data;
+  const allTxs = allResult.data;
+  const goals = goalsResult.data;
 
   const monthIncome = monthTxs?.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0) || 0;
   const monthExpenses = monthTxs?.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0) || 0;
@@ -67,11 +89,16 @@ analyticsRoutes.get('/overview', asyncHandler(async (req: Request, res: Response
   const totalSaved = goals?.reduce((sum, g) => sum + (g.saved || 0), 0) || 0;
   const totalTarget = goals?.reduce((sum, g) => sum + (g.target || 0), 0) || 0;
 
-  const { data: profile } = await client
+  const { data: profile, error: profileError } = await client
     .from('profiles')
     .select('emergency_buffer')
     .eq('id', userId)
     .single();
+
+  if (profileError) {
+    console.error('[analytics/overview] profile error:', profileError.message);
+    throw ApiError.internal('Failed to fetch overview data');
+  }
 
   return successResponse({
     currentMonth: {
@@ -116,7 +143,10 @@ analyticsRoutes.get('/spending/trends', asyncHandler(async (req: Request, res: R
     .lte('date', end)
     .order('date', { ascending: true });
 
-  if (error) throw ApiError.internal(error.message);
+  if (error) {
+    console.error('[analytics/spending/trends] database error:', error.message);
+    throw ApiError.internal('Failed to fetch spending trends');
+  }
 
   const monthly = (data || []).reduce((acc, t) => {
     const month = t.date.slice(0, 7);
@@ -126,13 +156,18 @@ analyticsRoutes.get('/spending/trends', asyncHandler(async (req: Request, res: R
     return acc;
   }, {} as Record<string, { income: number; expenses: number; byCategory: Record<string, number> }>);
 
-  const { data: incomeData } = await client
+  const { data: incomeData, error: incomeError } = await client
     .from('transactions')
     .select('amount, date')
     .eq('user_id', userId)
     .eq('type', 'income')
     .gte('date', start)
     .lte('date', end);
+
+  if (incomeError) {
+    console.error('[analytics/spending/trends] income query error:', incomeError.message);
+    throw ApiError.internal('Failed to fetch spending trends');
+  }
 
   (incomeData || []).forEach(t => {
     const month = t.date.slice(0, 7);
@@ -172,7 +207,10 @@ analyticsRoutes.get('/spending/by-category', asyncHandler(async (req: Request, r
     .gte('date', start)
     .lte('date', end);
 
-  if (error) throw ApiError.internal(error.message);
+  if (error) {
+    console.error('[analytics/spending/by-category] database error:', error.message);
+    throw ApiError.internal('Failed to fetch spending by category');
+  }
 
   const totals = (data || []).reduce((acc, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -207,7 +245,10 @@ analyticsRoutes.get('/income/by-category', asyncHandler(async (req: Request, res
     .gte('date', start)
     .lte('date', end);
 
-  if (error) throw ApiError.internal(error.message);
+  if (error) {
+    console.error('[analytics/income/by-category] database error:', error.message);
+    throw ApiError.internal('Failed to fetch income by category');
+  }
 
   const totals = (data || []).reduce((acc, t) => {
     acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -243,7 +284,10 @@ analyticsRoutes.get('/cashflow', asyncHandler(async (req: Request, res: Response
     .gte('date', startStr)
     .lte('date', endStr);
 
-  if (error) throw ApiError.internal(error.message);
+  if (error) {
+    console.error('[analytics/cashflow] database error:', error.message);
+    throw ApiError.internal('Failed to fetch cashflow');
+  }
 
   const daily = (data || []).reduce((acc, t) => {
     if (!acc[t.date]) acc[t.date] = { income: 0, expenses: 0 };
@@ -276,7 +320,10 @@ analyticsRoutes.get('/goals/progress', asyncHandler(async (req: Request, res: Re
     .select('*')
     .eq('user_id', userId);
 
-  if (error) throw ApiError.internal(error.message);
+  if (error) {
+    console.error('[analytics/goals/progress] database error:', error.message);
+    throw ApiError.internal('Failed to fetch goals progress');
+  }
 
   const goals = (data || []).map(g => {
     const progress = g.target > 0 ? Math.round((g.saved / g.target) * 10000) / 100 : 0;
@@ -306,7 +353,10 @@ analyticsRoutes.get('/net-worth', asyncHandler(async (req: Request, res: Respons
     .eq('user_id', userId)
     .order('date', { ascending: true });
 
-  if (error) throw ApiError.internal(error.message);
+  if (error) {
+    console.error('[analytics/net-worth] database error:', error.message);
+    throw ApiError.internal('Failed to fetch net worth');
+  }
 
   const monthly = (data || []).reduce((acc, t) => {
     const month = t.date.slice(0, 7);

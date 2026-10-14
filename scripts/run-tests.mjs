@@ -64,6 +64,9 @@ const TESTS = [
   'reportChartMath.test.mjs',
   'calendar.test.mjs',
   'authSession.test.mjs',
+  'currencyBudgetsLimitAmount.test.mjs',
+  'clearAllData.test.mjs',
+  'migration0008.test.mjs',
 ];
 const run = spawnSync(
   process.execPath,

@@ -40,6 +40,7 @@ export default function Settings() {
 
   const [pictureSheetOpen, setPictureSheetOpen] = useState(false);
   const [pictureViewerOpen, setPictureViewerOpen] = useState(false);
+  const [clearAllLoading, setClearAllLoading] = useState(false);
 
   const confirm = (title: string, msg: string, action: () => void) => {
     if (Platform.OS === 'web') {
@@ -52,6 +53,28 @@ export default function Settings() {
       { text: t('settings.confirmation.cancel'), style: 'cancel' },
       { text: t('settings.confirmation.confirm'), style: 'destructive', onPress: action },
     ]);
+  };
+
+  const handleClearAllData = async () => {
+    if (clearAllLoading) return;
+    setClearAllLoading(true);
+    try {
+      await clearAllData();
+      if (Platform.OS === 'web') {
+        window.alert(t('settings.clearAllSuccess'));
+      } else {
+        Alert.alert(t('settings.clearAllSuccessTitle'), t('settings.clearAllSuccess'));
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : t('common.unexpectedError');
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert(t('settings.clearAllErrorTitle'), message);
+      }
+    } finally {
+      setClearAllLoading(false);
+    }
   };
 
   const themeLabel = theme === 'dark' ? t('settings.themeDark') : t('settings.themeLight');
@@ -216,8 +239,9 @@ export default function Settings() {
               icon="trash"
               label={t('settings.clearAllData')}
               danger
+              loading={clearAllLoading}
               onPress={() =>
-                confirm(t('settings.clearAllTitle'), t('settings.clearAllMessage'), clearAllData)
+                confirm(t('settings.clearAllTitle'), t('settings.clearAllMessage'), handleClearAllData)
               }
             />
             <SettingRow

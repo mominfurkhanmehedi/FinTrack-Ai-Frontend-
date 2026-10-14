@@ -95,7 +95,16 @@ export default function AskFinTrack() {
             <Ionicons name="sparkles" size={20} color="#4f46e5" />
             <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100 ml-2">{t('askFinTrack.title')}</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={() => router.back()}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.dismiss();
+              }
+            }}
+          >
             <Text className="text-brand-600 dark:text-brand-400 font-semibold">{t('askFinTrack.close')}</Text>
           </Pressable>
         </View>

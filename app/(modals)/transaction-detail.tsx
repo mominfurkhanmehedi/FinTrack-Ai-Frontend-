@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRef, useState } from 'react';
 
 import { CATEGORY_KEYS } from '../../components/transactions/TransactionForm';
-import { Button } from '../../components/ui';
+import { Button, ConfirmationSheet } from '../../components/ui';
 import { ROUTES } from '../../constants/routes';
 import { useI18n } from '../../i18n';
 import { useAppStore } from '../../store';
@@ -21,10 +22,15 @@ export default function TransactionDetail() {
   const deleteTransaction = useAppStore((s) => s.deleteTransaction);
   const { format } = useMoney();
   const { t, locale } = useI18n();
+  const hasNavigated = useRef(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const tx = transactions.find((t) => t.id === id);
   if (!tx) {
-    router.back();
+    if (!hasNavigated.current) {
+      hasNavigated.current = true;
+      router.replace(ROUTES.TRANSACTIONS);
+    }
     return null;
   }
 
@@ -34,22 +40,21 @@ export default function TransactionDetail() {
       ? t('categories.savings')
       : t(`categories.${CATEGORY_KEYS[tx.category] ?? 'other'}.label`);
 
-  const onDelete = () => {
-    Alert.alert(
-      t('transactions.detail.deleteTitle'),
-      t('transactions.detail.deleteMessage', { title: tx.title }),
-      [
-        { text: t('transactions.detail.cancel'), style: 'cancel' },
-        {
-          text: t('transactions.detail.delete'),
-          style: 'destructive',
-          onPress: () => {
-            deleteTransaction(tx.id);
-            router.back();
-          },
-        },
-      ],
-    );
+  const handleDeletePress = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    deleteTransaction(tx.id);
+    setShowDeleteConfirm(false);
+    if (!hasNavigated.current) {
+      hasNavigated.current = true;
+      router.replace(ROUTES.TRANSACTIONS);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
   };
 
   return (
@@ -57,7 +62,7 @@ export default function TransactionDetail() {
       <ScrollView contentContainerClassName="p-6">
         <View className="flex-row items-center justify-between mb-6">
           <Text className="text-2xl font-bold text-gray-900">{t('transactions.detail.title')}</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" onPress={() => router.replace(ROUTES.TRANSACTIONS)}>
             <Text className="text-brand-600 font-semibold">{t('transactions.detail.close')}</Text>
           </Pressable>
         </View>
@@ -91,8 +96,19 @@ export default function TransactionDetail() {
           onPress={() => router.push(`${ROUTES.MODALS.EDIT_TRANSACTION}?id=${tx.id}`)}
         />
         <View className="h-3" />
-        <Button title={t('transactions.detail.delete')} variant="danger" fullWidth onPress={onDelete} />
+        <Button title={t('transactions.detail.delete')} variant="danger" fullWidth onPress={handleDeletePress} />
       </ScrollView>
+
+      <ConfirmationSheet
+        visible={showDeleteConfirm}
+        title={t('transactions.detail.deleteTitle')}
+        message={t('transactions.detail.deleteMessage', { title: tx.title })}
+        confirmText={t('transactions.detail.delete')}
+        cancelText={t('transactions.detail.cancel')}
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </SafeAreaView>
   );
 }

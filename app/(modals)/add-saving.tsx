@@ -33,6 +33,7 @@ export default function AddSaving() {
   const addTransaction = useAppStore((s) => s.addTransaction);
   const { format, symbol, toBase } = useMoney();
   const { t } = useI18n();
+  const currency = useAppStore((s) => s.currency);
 
   const goal = goals.find((g) => g.id === goalId);
   const balance = netBalance(transactions);
@@ -74,8 +75,13 @@ export default function AddSaving() {
       type: 'expense',
       category: 'Savings',
       date: isoToday(),
+      currency,
     });
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.dismiss();
+    }
   };
 
   if (!goal) {
@@ -88,7 +94,13 @@ export default function AddSaving() {
         <Pressable
           accessibilityRole="button"
           className="mt-6 rounded-xl bg-brand-600 px-6 py-3"
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.dismiss();
+            }
+          }}
         >
           <Text className="text-white font-semibold">{t('addSaving.goBack')}</Text>
         </Pressable>
@@ -106,7 +118,13 @@ export default function AddSaving() {
           <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             {t('addSaving.title')}
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.dismiss();
+            }
+          }}>
             <Text className="text-brand-600 font-semibold">{t('addSaving.close')}</Text>
           </Pressable>
         </View>

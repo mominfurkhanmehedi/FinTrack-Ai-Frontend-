@@ -10,4 +10,6 @@ export { ResponsiveContainer } from './ResponsiveContainer';
 export { EmptyState } from './EmptyState';
 export { Chart } from './Chart';
 export type { ChartProps } from './Chart';
+export { ConfirmationSheet } from './ConfirmationSheet';
+export type { ConfirmationSheetProps } from './ConfirmationSheet';
 export { POINTER_EVENTS } from './pointerEventsStyles';

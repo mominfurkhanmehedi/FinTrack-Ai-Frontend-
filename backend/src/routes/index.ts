@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { authRoutes } from './auth';
 import { userRoutes } from './users';
@@ -21,6 +21,8 @@ apiRoutes.use('/goals', authMiddleware, goalRoutes);
 apiRoutes.use('/categories', authMiddleware, categoryRoutes);
 apiRoutes.use('/budgets', authMiddleware, budgetRoutes);
 apiRoutes.use('/analytics', authMiddleware, analyticsRoutes);
-apiRoutes.use('/currency', currencyRoutes);
+// Apply optional auth to currency routes so public rate endpoints work without auth,
+// while user-specific endpoints can check req.userId and return 401 if needed.
+apiRoutes.use('/currency', optionalAuthMiddleware, currencyRoutes);
 apiRoutes.use('/ai', authMiddleware, aiRoutes);
 apiRoutes.use('/notifications', authMiddleware, notificationRoutes);

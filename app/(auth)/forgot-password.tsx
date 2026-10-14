@@ -21,7 +21,11 @@ export default function ForgotPassword() {
     setLoading(false);
     if (result.ok) {
       Alert.alert(t('auth.forgot.checkEmailTitle'), t('auth.forgot.checkEmailBody'));
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/login');
+      }
     } else {
       Alert.alert(t('auth.forgot.errorTitle'), result.error ?? t('auth.forgot.somethingWentWrong'));
     }

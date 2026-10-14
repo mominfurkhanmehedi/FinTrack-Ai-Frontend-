@@ -19,6 +19,7 @@ export default function AddTransaction() {
   const addTransaction = useAppStore((s) => s.addTransaction);
   const { type, date } = useLocalSearchParams<{ type?: string; date?: string }>();
   const { t } = useI18n();
+  const currency = useAppStore((s) => s.currency);
 
   const initialDate = isValidIso(date) ? date : isoToday();
 
@@ -40,9 +41,16 @@ export default function AddTransaction() {
             type: values.type,
             category: values.category,
             date: values.date,
+            currency,
           });
           // Close the modal after saving
-          setTimeout(() => router.back(), 100);
+          setTimeout(() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.dismiss();
+            }
+          }, 100);
         }}
       />
     </SafeAreaView>

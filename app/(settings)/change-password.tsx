@@ -34,7 +34,13 @@ export default function ChangePassword() {
     }
     setError(null);
     setDone(true);
-    setTimeout(() => router.back(), 1200);
+    setTimeout(() => {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/settings');
+      }
+    }, 1200);
   };
 
   return (

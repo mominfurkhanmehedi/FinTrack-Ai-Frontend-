@@ -114,7 +114,13 @@ export default function WhatIf() {
         {/* Header */}
         <View className="flex-row items-center justify-between mb-6">
           <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t('whatIf.title')}</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()}>
+          <Pressable accessibilityRole="button" onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.dismiss();
+            }
+          }}>
             <Text className="text-brand-600 dark:text-brand-400 font-semibold">{t('whatIf.close')}</Text>
           </Pressable>
         </View>

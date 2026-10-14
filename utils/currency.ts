@@ -1,4 +1,4 @@
-import { CURRENCIES, Goal, Transaction } from '../types';
+import { CURRENCIES, Goal, Transaction, Budget } from '../types';
 
 /**
  * CURRENCY CONVERSION + FORMATTING (PURE)
@@ -46,7 +46,14 @@ export const SUPPORTED_CURRENCY_CODES: readonly string[] = CURRENCIES.map((c) =>
 const ZERO_DECIMAL_CURRENCIES = new Set(['JPY']);
 
 /** Locales that produce each currency's native digit grouping. */
-const CURRENCY_LOCALES: Record<string, string> = { INR: 'en-IN' };
+const CURRENCY_LOCALES: Record<string, string> = {
+  INR: 'en-IN',
+  AED: 'ar-AE',
+  SGD: 'en-SG',
+  CAD: 'en-CA',
+  AUD: 'en-AU',
+  CHF: 'de-CH',
+};
 
 /**
  * A rate table: for each supported code, how many of that code one
@@ -271,6 +278,7 @@ export function reconcileCurrencyFromRecords(
 export interface MonetaryData {
   transactions: Transaction[];
   goals: Goal[];
+  budgets: Budget[];
   /** Safety buffer, or `null` when it is derived automatically. */
   emergencyBuffer: number | null;
 }
@@ -285,6 +293,7 @@ export interface CurrencyChangePlan {
   to: string;
   transactions: Transaction[];
   goals: Goal[];
+  budgets: Budget[];
   emergencyBuffer: number | null;
 }
 
@@ -294,6 +303,7 @@ export type CurrencyChangeError = 'unsupported' | 'same-currency' | 'no-rate' | 
 export interface MonetaryDataInput {
   transactions?: Transaction[] | null;
   goals?: Goal[] | null;
+  budgets?: Budget[] | null;
   emergencyBuffer?: number | null;
 }
 
@@ -328,6 +338,7 @@ export function planCurrencyChange(
 ): CurrencyChangePlan {
   const transactions = data.transactions ?? [];
   const goals = data.goals ?? [];
+  const budgets = data.budgets ?? [];
   const emergencyBuffer = data.emergencyBuffer ?? null;
   const fail = (error: CurrencyChangeError): CurrencyChangePlan => ({
     ok: false,
@@ -336,6 +347,7 @@ export function planCurrencyChange(
     to,
     transactions,
     goals,
+    budgets,
     emergencyBuffer,
   });
 
@@ -359,6 +371,7 @@ export function planCurrencyChange(
   const sources = new Set<string>();
   for (const t of transactions) sources.add(sourceOf(t));
   for (const g of goals) sources.add(sourceOf(g));
+  for (const b of budgets) sources.add(sourceOf(b));
   // The safety buffer is a single app-level value with no per-row code, so it
   // follows the selected currency the app is currently on.
   if (emergencyBuffer !== null) sources.add(from);
@@ -375,6 +388,7 @@ export function planCurrencyChange(
   const raw: number[] = [
     ...transactions.map((t) => Number(t.amount)),
     ...goals.flatMap((g) => [Number(g.target), Number(g.saved)]),
+    ...budgets.map((b) => Number(b.amount)),
     ...(emergencyBuffer === null ? [] : [Number(emergencyBuffer)]),
   ];
   if (raw.some((n) => !Number.isFinite(n))) return fail('invalid-amount');
@@ -392,6 +406,11 @@ export function planCurrencyChange(
       ...g,
       target: convertCurrency(g.target, sourceOf(g), to, table) as number,
       saved: convertCurrency(g.saved, sourceOf(g), to, table) as number,
+      currency: to,
+    })),
+    budgets: budgets.map((b) => ({
+      ...b,
+      amount: convertCurrency(b.amount, sourceOf(b), to, table) as number,
       currency: to,
     })),
     emergencyBuffer:
